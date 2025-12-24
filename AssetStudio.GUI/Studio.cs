@@ -29,6 +29,7 @@ namespace AssetStudio.GUI
         public static AssemblyLoader assemblyLoader = new AssemblyLoader();
         public static List<AssetItem> exportableAssets = new List<AssetItem>();
         public static List<AssetItem> visibleAssets = new List<AssetItem>();
+        public static List<AssetItem> redundanzAssets = new List<AssetItem>();
         internal static Action<string> StatusStripUpdate = x => { };
 
         public static int ExtractFolder(string path, string savePath)
@@ -227,6 +228,26 @@ namespace AssetStudio.GUI
                         }
                     }
                 }
+                foreach (var asset in redundanzAssets)
+                {
+                    if (int.TryParse(asset.Container, out var value))
+                    {
+                        var last = unchecked((uint)value);
+                        var name = Path.GetFileNameWithoutExtension(asset.SourceFile.originalPath);
+                        if (uint.TryParse(name, out var id))
+                        {
+                            var path = ResourceIndex.GetContainer(id, last);
+                            if (!string.IsNullOrEmpty(path))
+                            {
+                                asset.Container = path;
+                                if (asset.Type == ClassIDType.MiHoYoBinData)
+                                {
+                                    asset.Text = Path.GetFileNameWithoutExtension(path);
+                                }
+                            }
+                        }
+                    }
+                }
                 Logger.Info("Updated !!");
             }
         }
@@ -239,9 +260,11 @@ namespace AssetStudio.GUI
             string productName = null;
             var objectCount = assetsManager.assetsFileList.Sum(x => x.Objects.Count);
             var objectAssetItemDic = new Dictionary<Object, AssetItem>(objectCount);
+            var objectAssetItemDic2 = new Dictionary<Object, AssetItem>(objectCount);
             var mihoyoBinDataNames = new List<(PPtr<Object>, string)>();
             var containers = new List<(PPtr<Object>, string)>();
             Progress.Reset();
+            var redundanzAssets2 = new List<AssetItem>();
             foreach (var assetsFile in assetsManager.assetsFileList)
             {
                 foreach (var asset in assetsFile.Objects)
@@ -252,24 +275,38 @@ namespace AssetStudio.GUI
                         return (string.Empty, Array.Empty<TreeNode>().ToList());
                     }
                     var assetItem = new AssetItem(asset);
+                    var assetItem2 = new AssetItem(asset);
                     objectAssetItemDic.Add(asset, assetItem);
                     assetItem.UniqueID = "#" + i;
+                    assetItem2.UniqueID = "#" + i;
                     var exportable = false;
                     switch (asset)
                     {
                         case Texture2D m_Texture2D:
                             if (!string.IsNullOrEmpty(m_Texture2D.m_StreamData?.path))
+                            {
                                 assetItem.FullSize = asset.byteSize + m_Texture2D.m_StreamData.size;
+                                assetItem2.FullSize = asset.byteSize + m_Texture2D.m_StreamData.size;
+                            }
+                               
                             exportable = ClassIDType.Texture2D.CanExport();
                             break;
                         case AudioClip m_AudioClip:
                             if (!string.IsNullOrEmpty(m_AudioClip.m_Source))
+                            {
                                 assetItem.FullSize = asset.byteSize + m_AudioClip.m_Size;
+                                assetItem2.FullSize = asset.byteSize + m_AudioClip.m_Size;
+                            }
+                                
                             exportable = ClassIDType.AudioClip.CanExport();
                             break;
                         case VideoClip m_VideoClip:
                             if (!string.IsNullOrEmpty(m_VideoClip.m_OriginalPath))
+                            {
                                 assetItem.FullSize = asset.byteSize + m_VideoClip.m_ExternalResources.m_Size;
+                                assetItem2.FullSize = asset.byteSize + m_VideoClip.m_ExternalResources.m_Size;
+                            }
+                                
                             exportable = ClassIDType.VideoClip.CanExport();
                             break;
                         case PlayerSettings m_PlayerSettings:
@@ -327,11 +364,17 @@ namespace AssetStudio.GUI
                     {
                         assetItem.Text = assetItem.TypeString + assetItem.UniqueID;
                     }
+                    if (assetItem2.Text == "")
+                    {
+                        assetItem2.Text = assetItem2.TypeString + assetItem2.UniqueID;
+                    }
                     if (Properties.Settings.Default.displayAll || exportable)
                     {
                         exportableAssets.Add(assetItem);
+                        redundanzAssets2.Add(assetItem2);
                     }
                     Progress.Report(++i, objectCount);
+                    objectAssetItemDic2.Add(asset, assetItem2);
                 }
             }
             foreach((var pptr, var name) in mihoyoBinDataNames)
@@ -350,6 +393,14 @@ namespace AssetStudio.GUI
                         assetItem.Container = hash.ToString();
                     }
                     else assetItem.Text = $"BinFile #{assetItem.m_PathID}";
+
+                    var assetItem2 = objectAssetItemDic2[obj];
+                    if (int.TryParse(name, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var hash2))
+                    {
+                        assetItem2.Text = name;
+                        assetItem2.Container = hash2.ToString();
+                    }
+                    else assetItem2.Text = $"BinFile #{assetItem2.m_PathID}";
                 }
             }
             if (!SkipContainer)
@@ -364,6 +415,7 @@ namespace AssetStudio.GUI
                     if (pptr.TryGet(out var obj))
                     {
                         objectAssetItemDic[obj].Container = container;
+                        objectAssetItemDic2[obj].Container = container;
                     }
                 }
                 containers.Clear();
@@ -383,6 +435,54 @@ namespace AssetStudio.GUI
             }
 
             visibleAssets = exportableAssets;
+
+            Dictionary<string, AssetItem> keyValuePairs = new Dictionary<string, AssetItem>();
+            bool isRedundanz = false;
+            foreach (var kvp in redundanzAssets2)
+            {
+                if (keyValuePairs.TryGetValue(Path.Combine(kvp.Name, kvp.m_PathID.ToString(), kvp.FullSize.ToString(), kvp.Type.ToString()), out var assetItem3))
+                {
+                    if (assetItem3.Type == kvp.Type && assetItem3.m_PathID == kvp.m_PathID && assetItem3.FullSize == kvp.FullSize && assetItem3.Name == kvp.Name)
+                    {
+                        assetItem3.Gesamtzahl++;
+                        assetItem3.AllContainer += "\n" + kvp.Container;
+                        isRedundanz = true;
+                    }
+                    else
+                    {
+                        kvp.AllContainer = kvp.Container;
+                        redundanzAssets.Add(kvp);
+                    }
+                }
+                else
+                {
+                    kvp.AllContainer = kvp.Container;
+                    keyValuePairs.Add(Path.Combine(kvp.Name, kvp.m_PathID.ToString(), kvp.FullSize.ToString(), kvp.Type.ToString()), kvp);
+                }
+            }
+            foreach (var tmp in keyValuePairs.Values)
+            {
+                tmp.SetSubItems2();
+                redundanzAssets.Add(tmp);
+            }
+            if (isRedundanz)
+            {
+                redundanzAssets.Sort((a, b) =>
+                {
+                    var asf = a.FullSize * (a.Gesamtzahl - 1);
+                    var bsf = b.FullSize * (b.Gesamtzahl - 1);
+                    return bsf.CompareTo(asf);
+                });
+            }
+            else
+            {
+                redundanzAssets.Sort((a, b) =>
+                {
+                    var asf = a.FullSize;
+                    var bsf = b.FullSize;
+                    return bsf.CompareTo(asf);
+                });
+            }
 
             StatusStripUpdate("Building tree structure...");
 

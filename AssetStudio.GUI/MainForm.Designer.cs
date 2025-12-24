@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Windows.Forms;
 
 namespace AssetStudio.GUI
 {
@@ -130,6 +131,7 @@ namespace AssetStudio.GUI
             sceneTreeView = new GOHierarchy();
             treeSearch = new System.Windows.Forms.TextBox();
             tabPage2 = new System.Windows.Forms.TabPage();
+            tabPage6 = new System.Windows.Forms.TabPage();
             assetListView = new System.Windows.Forms.ListView();
             columnHeaderName = new System.Windows.Forms.ColumnHeader();
             columnHeaderContainer = new System.Windows.Forms.ColumnHeader();
@@ -139,8 +141,15 @@ namespace AssetStudio.GUI
             listSearch = new System.Windows.Forms.TextBox();
             tabPage3 = new System.Windows.Forms.TabPage();
             classesListView = new System.Windows.Forms.ListView();
+            redundanteRessourcenListView = new System.Windows.Forms.ListView();
             columnHeader1 = new System.Windows.Forms.ColumnHeader();
             columnHeader2 = new System.Windows.Forms.ColumnHeader();
+            redundanteRessourcenColumnHeader1 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            redundanteRessourcenColumnHeader2 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            redundanteRessourcenColumnHeader3 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            redundanteRessourcenColumnHeader4 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            redundanteRessourcenColumnHeader5 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            redundanteRessourcenColumnHeader6 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             progressbarPanel = new System.Windows.Forms.Panel();
             progressBar1 = new System.Windows.Forms.ProgressBar();
             tabControl2 = new System.Windows.Forms.TabControl();
@@ -183,6 +192,7 @@ namespace AssetStudio.GUI
             tabPage1.SuspendLayout();
             tabPage2.SuspendLayout();
             tabPage3.SuspendLayout();
+            tabPage6.SuspendLayout();
             progressbarPanel.SuspendLayout();
             tabControl2.SuspendLayout();
             tabPage4.SuspendLayout();
@@ -856,7 +866,7 @@ namespace AssetStudio.GUI
             splitContainer1.Panel2.Controls.Add(tabControl2);
             splitContainer1.Panel2.Controls.Add(statusStrip1);
             splitContainer1.Panel2MinSize = 400;
-            splitContainer1.Size = new System.Drawing.Size(1264, 657);
+            splitContainer1.Size = new System.Drawing.Size(1000, 657);
             splitContainer1.SplitterDistance = 482;
             splitContainer1.TabIndex = 2;
             splitContainer1.TabStop = false;
@@ -865,6 +875,7 @@ namespace AssetStudio.GUI
             // 
             tabControl1.Controls.Add(tabPage1);
             tabControl1.Controls.Add(tabPage2);
+            tabControl1.Controls.Add(tabPage6);
             tabControl1.Controls.Add(tabPage3);
             tabControl1.Dock = System.Windows.Forms.DockStyle.Fill;
             tabControl1.Location = new System.Drawing.Point(0, 0);
@@ -912,8 +923,21 @@ namespace AssetStudio.GUI
             // 
             // tabPage2
             // 
-            tabPage2.Controls.Add(assetListView);
-            tabPage2.Controls.Add(listSearch);
+            var tabPage2Panel = new Panel() { Dock = DockStyle.Fill };
+            tabPage2.Controls.Add(tabPage2Panel);
+            
+            var filterPanel = new Panel() { Dock = DockStyle.Top, Height = 25 };
+            var classIDTypeComboBox = new ComboBox() { Dock = DockStyle.Left, Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
+            var totalSizeLabel = new Label() { Dock = DockStyle.Fill, TextAlign = System.Drawing.ContentAlignment.MiddleRight };
+            filterPanel.Controls.Add(totalSizeLabel);
+            filterPanel.Controls.Add(classIDTypeComboBox);
+            
+            tabPage2Panel.Controls.Add(assetListView);
+            tabPage2Panel.Controls.Add(listSearch);
+            tabPage2Panel.Controls.Add(filterPanel);
+            
+            assetListView.Dock = DockStyle.Fill;
+            listSearch.Dock = DockStyle.Top;
             tabPage2.Location = new System.Drawing.Point(4, 24);
             tabPage2.Name = "tabPage2";
             tabPage2.Size = new System.Drawing.Size(472, 607);
@@ -977,6 +1001,7 @@ namespace AssetStudio.GUI
             // tabPage3
             // 
             tabPage3.Controls.Add(classesListView);
+            classesListView.Dock = DockStyle.Fill;
             tabPage3.Location = new System.Drawing.Point(4, 24);
             tabPage3.Name = "tabPage3";
             tabPage3.Size = new System.Drawing.Size(472, 607);
@@ -1009,6 +1034,134 @@ namespace AssetStudio.GUI
             columnHeader2.DisplayIndex = 0;
             columnHeader2.Text = "ID";
             columnHeader2.Width = 70;
+
+            //
+            // tabPage6
+            //
+            tabPage6.Controls.Add(redundanteRessourcenListView);
+            tabPage6.Location = new System.Drawing.Point(4, 22);
+            tabPage6.Name = "tabPage6";
+            tabPage6.Size = new System.Drawing.Size(472, 608);
+            tabPage6.TabIndex = 3;
+            tabPage6.Text = "检查重复资源";
+            tabPage6.UseVisualStyleBackColor = true;
+            
+            //
+            // tabPage7 - Uncompressed Textures
+            //
+            var tabPage7 = new TabPage();
+            var uncompressedTexturesPanel = new Panel() { Dock = DockStyle.Fill };
+            var uncompressedTexturesListView = new ListView();
+            var uncompressedTotalLabel = new Label() { Dock = DockStyle.Top, Height = 25, TextAlign = System.Drawing.ContentAlignment.MiddleLeft, Padding = new Padding(5, 5, 5, 5) };
+            var uncompressedColumnHeader1 = new ColumnHeader();
+            var uncompressedColumnHeader2 = new ColumnHeader();
+            var uncompressedColumnHeader3 = new ColumnHeader();
+            var uncompressedColumnHeader4 = new ColumnHeader();
+            var uncompressedColumnHeader5 = new ColumnHeader();
+            var uncompressedColumnHeader6 = new ColumnHeader();
+            
+            tabPage7.Controls.Add(uncompressedTexturesPanel);
+            uncompressedTexturesPanel.Controls.Add(uncompressedTexturesListView);
+            uncompressedTexturesPanel.Controls.Add(uncompressedTotalLabel);
+            tabPage7.Location = new System.Drawing.Point(4, 22);
+            tabPage7.Name = "tabPage7";
+            tabPage7.Size = new System.Drawing.Size(472, 608);
+            tabPage7.TabIndex = 4;
+            tabPage7.Text = "未压缩纹理";
+            tabPage7.UseVisualStyleBackColor = true;
+            
+            uncompressedTexturesListView.Columns.AddRange(new ColumnHeader[] {
+                uncompressedColumnHeader1,
+                uncompressedColumnHeader2,
+                uncompressedColumnHeader3,
+                uncompressedColumnHeader4,
+                uncompressedColumnHeader5,
+                uncompressedColumnHeader6
+            });
+            uncompressedTexturesListView.Dock = DockStyle.Fill;
+            uncompressedTexturesListView.FullRowSelect = true;
+            uncompressedTexturesListView.GridLines = true;
+            uncompressedTexturesListView.HideSelection = false;
+            uncompressedTexturesListView.Location = new System.Drawing.Point(0, 0);
+            uncompressedTexturesListView.Name = "uncompressedTexturesListView";
+            uncompressedTexturesListView.Size = new System.Drawing.Size(472, 607);
+            uncompressedTexturesListView.TabIndex = 0;
+            uncompressedTexturesListView.UseCompatibleStateImageBehavior = false;
+            uncompressedTexturesListView.View = View.Details;
+            uncompressedTexturesListView.VirtualMode = true;
+            uncompressedTexturesListView.ColumnClick += new ColumnClickEventHandler(uncompressedTexturesListView_ColumnClick);
+            uncompressedTexturesListView.ItemSelectionChanged += new ListViewItemSelectionChangedEventHandler(selectAsset);
+            uncompressedTexturesListView.RetrieveVirtualItem += new RetrieveVirtualItemEventHandler(uncompressedTexturesListView_RetrieveVirtualItem);
+            uncompressedTexturesListView.MouseClick += new MouseEventHandler(assetListView_MouseClick);
+            
+            uncompressedColumnHeader1.Text = "Name";
+            uncompressedColumnHeader1.Width = 150;
+            uncompressedColumnHeader2.Text = "Format";
+            uncompressedColumnHeader2.Width = 120;
+            uncompressedColumnHeader3.Text = "Width";
+            uncompressedColumnHeader3.Width = 60;
+            uncompressedColumnHeader4.Text = "Height";
+            uncompressedColumnHeader4.Width = 60;
+            uncompressedColumnHeader5.Text = "Size";
+            uncompressedColumnHeader5.Width = 80;
+            uncompressedColumnHeader6.Text = "Container";
+            uncompressedColumnHeader6.Width = 150;
+            
+            tabControl1.Controls.Add(tabPage7);
+            // 
+            // classesListView
+            // 
+            redundanteRessourcenListView.Columns.AddRange(new System.Windows.Forms.ColumnHeader[] {
+            redundanteRessourcenColumnHeader1,
+            redundanteRessourcenColumnHeader2,
+            redundanteRessourcenColumnHeader3,
+            redundanteRessourcenColumnHeader4,
+            redundanteRessourcenColumnHeader5,
+            redundanteRessourcenColumnHeader6
+            });
+            redundanteRessourcenListView.Dock = System.Windows.Forms.DockStyle.Fill;
+            redundanteRessourcenListView.FullRowSelect = true;
+            redundanteRessourcenListView.GridLines = true;
+            redundanteRessourcenListView.HideSelection = false;
+            redundanteRessourcenListView.Location = new System.Drawing.Point(0, 21);
+            redundanteRessourcenListView.Name = "redundanteRessourcenListView";
+            redundanteRessourcenListView.Size = new System.Drawing.Size(560, 587);
+            redundanteRessourcenListView.TabIndex = 1;
+            redundanteRessourcenListView.UseCompatibleStateImageBehavior = false;
+            redundanteRessourcenListView.View = System.Windows.Forms.View.Details;
+            redundanteRessourcenListView.VirtualMode = true;
+            redundanteRessourcenListView.ColumnClick += new System.Windows.Forms.ColumnClickEventHandler(redundanteRessourcenListView_ColumnClick);
+            redundanteRessourcenListView.ItemSelectionChanged += new System.Windows.Forms.ListViewItemSelectionChangedEventHandler(redundanteRessourcenListViewSelectAsset);
+            redundanteRessourcenListView.RetrieveVirtualItem += new System.Windows.Forms.RetrieveVirtualItemEventHandler(redundanteRessourcenListView_RetrieveVirtualItem);
+            redundanteRessourcenListView.MouseClick += new System.Windows.Forms.MouseEventHandler(redundanteRessourcenListView_MouseClick);
+            // 
+            // columnHeader1
+            // 
+            redundanteRessourcenColumnHeader1.Text = "Name";
+            redundanteRessourcenColumnHeader1.Width = 120;
+            // 
+            // columnHeader2
+            // 
+            redundanteRessourcenColumnHeader2.Text = "PathID";
+            redundanteRessourcenColumnHeader2.Width = 120;
+            // 
+            // columnHeader2
+            // 
+            redundanteRessourcenColumnHeader3.Text = "资源类型";
+            redundanteRessourcenColumnHeader3.Width = 70;
+            // 
+            // columnHeader2
+            // 
+            redundanteRessourcenColumnHeader4.Text = "相同数量";
+            redundanteRessourcenColumnHeader4.Width = 70;
+            // 
+            // columnHeader2
+            // 
+            redundanteRessourcenColumnHeader5.Text = "单个大小";
+            redundanteRessourcenColumnHeader5.Width = 70;
+
+            redundanteRessourcenColumnHeader6.Text = "冗余大小";
+            redundanteRessourcenColumnHeader6.Width = 70;
             // 
             // progressbarPanel
             // 
@@ -1065,7 +1218,7 @@ namespace AssetStudio.GUI
             previewPanel.Dock = System.Windows.Forms.DockStyle.Fill;
             previewPanel.Location = new System.Drawing.Point(0, 0);
             previewPanel.Name = "previewPanel";
-            previewPanel.Size = new System.Drawing.Size(768, 605);
+            previewPanel.Size = new System.Drawing.Size(500, 605);
             previewPanel.TabIndex = 1;
             previewPanel.Resize += preview_Resize;
             // 
@@ -1390,6 +1543,8 @@ namespace AssetStudio.GUI
             tabPage1.PerformLayout();
             tabPage2.ResumeLayout(false);
             tabPage2.PerformLayout();
+            this.tabPage6.ResumeLayout(false);
+            this.tabPage6.PerformLayout();
             tabPage3.ResumeLayout(false);
             progressbarPanel.ResumeLayout(false);
             tabControl2.ResumeLayout(false);
@@ -1417,6 +1572,7 @@ namespace AssetStudio.GUI
         private System.Windows.Forms.TabControl tabControl1;
         private System.Windows.Forms.TabPage tabPage1;
         private System.Windows.Forms.TabPage tabPage2;
+        private System.Windows.Forms.TabPage tabPage6;
         private System.Windows.Forms.TextBox treeSearch;
         private System.Windows.Forms.TextBox listSearch;
         private System.Windows.Forms.ToolStripMenuItem loadFileToolStripMenuItem;
@@ -1464,6 +1620,15 @@ namespace AssetStudio.GUI
         private System.Windows.Forms.ListView classesListView;
         private System.Windows.Forms.ColumnHeader columnHeader2;
         private System.Windows.Forms.ColumnHeader columnHeader1;
+
+        private System.Windows.Forms.ListView redundanteRessourcenListView;
+        private System.Windows.Forms.ColumnHeader redundanteRessourcenColumnHeader1;
+        private System.Windows.Forms.ColumnHeader redundanteRessourcenColumnHeader2;
+        private System.Windows.Forms.ColumnHeader redundanteRessourcenColumnHeader3;
+        private System.Windows.Forms.ColumnHeader redundanteRessourcenColumnHeader4;
+        private System.Windows.Forms.ColumnHeader redundanteRessourcenColumnHeader5;
+        private System.Windows.Forms.ColumnHeader redundanteRessourcenColumnHeader6;
+
         private System.Windows.Forms.TextBox classTextBox;
         private System.Windows.Forms.ToolStripMenuItem exportClassStructuresMenuItem;
         private System.Windows.Forms.Label FMODcopyright;

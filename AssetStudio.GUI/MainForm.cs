@@ -1,6 +1,10 @@
 ﻿
 using Newtonsoft.Json;
+using OpenTK.Audio.OpenAL;
+using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL;
+using OpenTK.Mathematics;
+using OpenTK.WinForms;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -11,20 +15,22 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
 using System.Windows.Forms;
 using static AssetStudio.GUI.Studio;
-using OpenTK.Graphics;
-using OpenTK.Mathematics;
-using System.Text.RegularExpressions;
-using OpenTK.Audio.OpenAL;
 
 namespace AssetStudio.GUI
 {
     partial class MainForm : Form
     {
+        private ComboBox classIDTypeComboBox;
+        private Label totalSizeLabel;
+        private ListView uncompressedTexturesListView;
+        private Label uncompressedTotalLabel;
+        private List<AssetItem> uncompressedTextures = new List<AssetItem>();
         private AssetItem lastSelectedItem;
         private AssetBrowser assetBrowser;
         private DirectBitmap imageTexture;
@@ -85,6 +91,18 @@ namespace AssetStudio.GUI
         {
             Thread.CurrentThread.CurrentCulture = new CultureInfo("en-US");
             InitializeComponent();
+
+           var tabPage2Panel = (Panel)tabPage2.Controls[0];
+           var filterPanel = (Panel)tabPage2Panel.Controls[2];
+           classIDTypeComboBox = (ComboBox)filterPanel.Controls[1];
+           totalSizeLabel = (Label)filterPanel.Controls[0];
+           
+           // 获取未压缩纹理ListView和Label
+           var tabPage7 = tabControl1.TabPages[4];
+           var uncompressedPanel = (Panel)tabPage7.Controls[0];
+           uncompressedTexturesListView = (ListView)uncompressedPanel.Controls[0];
+           uncompressedTotalLabel = (Label)uncompressedPanel.Controls[1];
+
             Text = $"Studio v{Application.ProductVersion}";
             InitializeExportOptions();
             InitializeProgressBar();
@@ -311,6 +329,54 @@ namespace AssetStudio.GUI
             Text = $"Studio v{Application.ProductVersion} - {productName} - {assetsManager.assetsFileList[0].unityVersion} - {assetsManager.assetsFileList[0].m_TargetPlatform}";
 
             assetListView.VirtualListSize = visibleAssets.Count;
+            redundanteRessourcenListView.VirtualListSize = redundanzAssets.Count;
+            
+            // 填充未压缩纹理列表
+            uncompressedTextures.Clear();
+            var uncompressedFormats = new[] {
+                TextureFormat.RGBA32,
+                TextureFormat.ARGB32,
+                TextureFormat.RGB24,
+                TextureFormat.RGBA4444,
+                TextureFormat.ARGB4444,
+                TextureFormat.Alpha8,
+                TextureFormat.RGB565,
+                TextureFormat.R16,
+                TextureFormat.RGBAHalf,
+                TextureFormat.RGBAFloat,
+                TextureFormat.BGRA32,
+                TextureFormat.RG16,
+                TextureFormat.R8
+            };
+            
+            long totalUncompressedSize = 0;
+            foreach (var asset in exportableAssets)
+            {
+                if (asset.Type == ClassIDType.Texture2D && asset.Asset is Texture2D texture2D)
+                {
+                    if (uncompressedFormats.Contains(texture2D.m_TextureFormat))
+                    {
+                        // 创建新的 AssetItem
+                        var item = new AssetItem(asset.Asset);
+                        item.Text = asset.Text; // 第0列: Name
+                        // SubItems从第2列开始（第1列已经有了Text）
+                        item.SubItems.Add(texture2D.m_TextureFormat.ToString()); // 第1列: Format
+                        item.SubItems.Add(texture2D.m_Width.ToString()); // 第2列: Width
+                        item.SubItems.Add(texture2D.m_Height.ToString()); // 第3列: Height
+                        item.SubItems.Add($"{asset.FullSize / 1024f:F2} KB"); // 第4列: Size
+                        item.SubItems.Add(asset.Container); // 第5列: Container
+                        
+                        uncompressedTextures.Add(item);
+                        totalUncompressedSize += asset.FullSize;
+                    }
+                }
+            }
+            
+            // 按 FullSize 从大到小排序
+            uncompressedTextures.Sort((a, b) => b.FullSize.CompareTo(a.FullSize));
+            
+            uncompressedTexturesListView.VirtualListSize = uncompressedTextures.Count;
+            uncompressedTotalLabel.Text = $"未压缩纹理总数: {uncompressedTextures.Count}  总大小: {totalUncompressedSize / (1024f * 1024f):F2} MB";
 
             sceneTreeView.BeginUpdate();
             sceneTreeView.Nodes.AddRange(treeNodeCollection.ToArray());
@@ -332,19 +398,36 @@ namespace AssetStudio.GUI
             typeMap.Clear();
             classesListView.EndUpdate();
 
-            var types = exportableAssets.Select(x => x.Type).Distinct().OrderBy(x => x.ToString()).ToArray();
-            foreach (var type in types)
-            {
-                var typeItem = new ToolStripMenuItem
-                {
-                    CheckOnClick = true,
-                    Name = type.ToString(),
-                    Size = new Size(180, 22),
-                    Text = type.ToString()
-                };
-                typeItem.Click += typeToolStripMenuItem_Click;
-                filterTypeToolStripMenuItem.DropDownItems.Add(typeItem);
-            }
+          // 计算每个类型的总大小并排序
+          var typeSizes = exportableAssets
+              .GroupBy(x => x.Type)
+              .Select(g => new { Type = g.Key, TotalSize = g.Sum(a => a.FullSize) })
+              .OrderByDescending(x => x.TotalSize)
+              .ToList();
+
+          classIDTypeComboBox.Items.Add("All");
+          foreach (var typeSize in typeSizes)
+          {
+              var sizeInMB = typeSize.TotalSize / (1024f * 1024f);
+              classIDTypeComboBox.Items.Add($"{typeSize.Type} ({sizeInMB:F2} MB)");
+          }
+          classIDTypeComboBox.SelectedIndex = 0;
+
+          classIDTypeComboBox.SelectedIndexChanged += (s, e) => FilterAssetList();
+
+           var types = exportableAssets.Select(x => x.Type).Distinct().OrderBy(x => x.ToString()).ToArray();
+           foreach (var type in types)
+           {
+               var typeItem = new ToolStripMenuItem
+               {
+                   CheckOnClick = true,
+                   Name = type.ToString(),
+                   Size = new Size(180, 22),
+                   Text = type.ToString()
+               };
+               typeItem.Click += typeToolStripMenuItem_Click;
+               filterTypeToolStripMenuItem.DropDownItems.Add(typeItem);
+           }
             allToolStripMenuItem.Checked = true;
             var log = $"Finished loading {assetsManager.assetsFileList.Count} files with {assetListView.Items.Count} exportable assets";
             var m_ObjectsCount = assetsManager.assetsFileList.Sum(x => x.m_Objects.Count);
@@ -562,6 +645,16 @@ namespace AssetStudio.GUI
             e.Item = visibleAssets[e.ItemIndex];
         }
 
+        private void redundanteRessourcenListView_RetrieveVirtualItem(object sender, RetrieveVirtualItemEventArgs e)
+        {
+            e.Item = redundanzAssets[e.ItemIndex];
+        }
+
+        private void uncompressedTexturesListView_RetrieveVirtualItem(object sender, RetrieveVirtualItemEventArgs e)
+        {
+            e.Item = uncompressedTextures[e.ItemIndex];
+        }
+
         private void tabPageSelected(object sender, TabControlEventArgs e)
         {
             switch (e.TabPageIndex)
@@ -763,6 +856,96 @@ namespace AssetStudio.GUI
             }
             assetListView.EndUpdate();
         }
+
+        private void redundanteRessourcenListView_ColumnClick(object sender, ColumnClickEventArgs e)
+        {
+            redundanteRessourcenListView.BeginUpdate();
+            redundanteRessourcenListView.SelectedIndices.Clear();
+            redundanteRessourcenListView.EndUpdate();
+        }
+
+        private void uncompressedTexturesListView_ColumnClick(object sender, ColumnClickEventArgs e)
+        {
+            // 如果点击的是 Container 列(第6列，索引5)，则不进行排序
+            if (e.Column == 5)
+            {
+                return;
+            }
+            
+            if (sortColumn != e.Column)
+            {
+                reverseSort = false;
+            }
+            else
+            {
+                reverseSort = !reverseSort;
+            }
+            sortColumn = e.Column;
+            
+            uncompressedTextures.Sort((a, b) =>
+            {
+                int result = 0;
+                switch (sortColumn)
+                {
+                    case 0: // Name
+                        result = string.Compare(a.Text, b.Text);
+                        break;
+                    case 1: // Format
+                        result = string.Compare(a.SubItems[sortColumn].Text, b.SubItems[sortColumn].Text);
+                        break;
+                    case 2: // Width
+                    case 3: // Height
+                        if (int.TryParse(a.SubItems[sortColumn].Text, out int aVal) &&
+                            int.TryParse(b.SubItems[sortColumn].Text, out int bVal))
+                        {
+                            result = aVal.CompareTo(bVal);
+                        }
+                        break;
+                    case 4: // Size - 按FullSize排序
+                        result = a.FullSize.CompareTo(b.FullSize);
+                        break;
+                }
+                return reverseSort ? -result : result;
+            });
+            
+            uncompressedTexturesListView.Invalidate();
+        }
+
+        private void redundanteRessourcenListViewSelectAsset(object sender, ListViewItemSelectionChangedEventArgs e)
+        {
+            previewPanel.BackgroundImage = Properties.Resources.preview;
+            previewPanel.BackgroundImageLayout = ImageLayout.Center;
+            classTextBox.Visible = false;
+            assetInfoLabel.Visible = false;
+            assetInfoLabel.Text = null;
+            textPreviewBox.Visible = false;
+            fontPreviewBox.Visible = false;
+            FMODpanel.Visible = false;
+            glControl.Visible = false;
+            StatusStripUpdate("");
+
+            FMODreset();
+
+            lastSelectedItem = (AssetItem)e.Item;
+
+            if (e.IsSelected)
+            {
+                if (tabControl2.SelectedIndex == 1)
+                {
+                    dumpTextBox.Text = DumpAsset(lastSelectedItem.Asset);
+                }
+                if (enablePreview.Checked)
+                {
+                    PreviewText(("包含此资源的AssetBundle:\n" + lastSelectedItem.AllContainer).Replace("\n", "\r\n").Replace("\0", ""));
+                    if (displayInfo.Checked && lastSelectedItem.InfoText != null)
+                    {
+                        assetInfoLabel.Text = lastSelectedItem.InfoText;
+                        assetInfoLabel.Visible = true;
+                    }
+                }
+            }
+        }
+
 
         private void selectAsset(object sender, ListViewItemSelectionChangedEventArgs e)
         {
@@ -1492,6 +1675,10 @@ namespace AssetStudio.GUI
             sceneTreeView.Nodes.Clear();
             assetListView.VirtualListSize = 0;
             assetListView.Items.Clear();
+            redundanteRessourcenListView.VirtualListSize = 0;
+            redundanteRessourcenListView.Items.Clear();
+            uncompressedTexturesListView.VirtualListSize = 0;
+            uncompressedTextures.Clear();
             classesListView.Items.Clear();
             classesListView.Groups.Clear();
             previewPanel.BackgroundImage = Properties.Resources.preview;
@@ -1542,6 +1729,33 @@ namespace AssetStudio.GUI
 
                 tempClipboard = assetListView.HitTest(new Point(e.X, e.Y)).SubItem.Text;
                 contextMenuStrip1.Show(assetListView, e.X, e.Y);
+            }
+        }
+
+        private void redundanteRessourcenListView_MouseClick(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Right && redundanteRessourcenListView.SelectedIndices.Count > 0)
+            {
+                goToSceneHierarchyToolStripMenuItem.Visible = false;
+                showOriginalFileToolStripMenuItem.Visible = false;
+                exportAnimatorwithselectedAnimationClipMenuItem.Visible = false;
+
+                if (redundanteRessourcenListView.SelectedIndices.Count == 1)
+                {
+                    goToSceneHierarchyToolStripMenuItem.Visible = true;
+                    showOriginalFileToolStripMenuItem.Visible = true;
+                }
+                if (redundanteRessourcenListView.SelectedIndices.Count >= 1)
+                {
+                    var selectedAssets = GetSelectedAssets();
+                    if (selectedAssets.Any(x => x.Type == ClassIDType.Animator) && selectedAssets.Any(x => x.Type == ClassIDType.AnimationClip))
+                    {
+                        exportAnimatorwithselectedAnimationClipMenuItem.Visible = true;
+                    }
+                }
+
+                tempClipboard = redundanteRessourcenListView.HitTest(new Point(e.X, e.Y)).SubItem.Text;
+                contextMenuStrip1.Show(redundanteRessourcenListView, e.X, e.Y);
             }
         }
 
@@ -1835,18 +2049,14 @@ namespace AssetStudio.GUI
         {
             assetListView.BeginUpdate();
             assetListView.SelectedIndices.Clear();
-            var show = new List<ClassIDType>();
-            if (!allToolStripMenuItem.Checked)
+            var selectedText = classIDTypeComboBox.SelectedItem.ToString();
+            
+            if (selectedText != "All")
             {
-                for (var i = 1; i < filterTypeToolStripMenuItem.DropDownItems.Count; i++)
-                {
-                    var item = (ToolStripMenuItem)filterTypeToolStripMenuItem.DropDownItems[i];
-                    if (item.Checked)
-                    {
-                        show.Add((ClassIDType)Enum.Parse(typeof(ClassIDType), item.Text));
-                    }
-                }
-                visibleAssets = exportableAssets.FindAll(x => show.Contains(x.Type));
+                // 从选项文本中提取类型名称（格式为 "TypeName (size MB)"）
+                var typeName = selectedText.Substring(0, selectedText.IndexOf(" ("));
+                var type = (ClassIDType)Enum.Parse(typeof(ClassIDType), typeName);
+                visibleAssets = exportableAssets.FindAll(x => x.Type == type);
             }
             else
             {
@@ -1888,7 +2098,19 @@ namespace AssetStudio.GUI
             }
             assetListView.VirtualListSize = visibleAssets.Count;
             assetListView.EndUpdate();
+
+           long totalSize = 0;
+           foreach (var asset in visibleAssets)
+           {
+               totalSize += asset.FullSize;
+           }
+           totalSizeLabel.Text = $"Total Size: {ToMiB(totalSize)}";
         }
+
+       private static string ToMiB(long size)
+       {
+           return $"{size / (1024f * 1024f):F2} MiB";
+       }
 
         private async void ExportAssets(ExportFilter type, ExportType exportType)
         {
