@@ -30,6 +30,7 @@ namespace AssetStudio.GUI
         private Label totalSizeLabel;
         private ListView uncompressedTexturesListView;
         private Label uncompressedTotalLabel;
+        private ComboBox textureDetectionComboBox;
         private List<AssetItem> uncompressedTextures = new List<AssetItem>();
         private AssetItem lastSelectedItem;
         private AssetBrowser assetBrowser;
@@ -97,11 +98,12 @@ namespace AssetStudio.GUI
            classIDTypeComboBox = (ComboBox)filterPanel.Controls[1];
            totalSizeLabel = (Label)filterPanel.Controls[0];
            
-           // 获取未压缩纹理ListView和Label
+           // 获取纹理专项检测ListView、Label和ComboBox
            var tabPage7 = tabControl1.TabPages[4];
            var uncompressedPanel = (Panel)tabPage7.Controls[0];
            uncompressedTexturesListView = (ListView)uncompressedPanel.Controls[0];
            uncompressedTotalLabel = (Label)uncompressedPanel.Controls[1];
+           textureDetectionComboBox = (ComboBox)uncompressedPanel.Controls[2];
 
             Text = $"Studio v{Application.ProductVersion}";
             InitializeExportOptions();
@@ -331,52 +333,8 @@ namespace AssetStudio.GUI
             assetListView.VirtualListSize = visibleAssets.Count;
             redundanteRessourcenListView.VirtualListSize = redundanzAssets.Count;
             
-            // 填充未压缩纹理列表
-            uncompressedTextures.Clear();
-            var uncompressedFormats = new[] {
-                TextureFormat.RGBA32,
-                TextureFormat.ARGB32,
-                TextureFormat.RGB24,
-                TextureFormat.RGBA4444,
-                TextureFormat.ARGB4444,
-                TextureFormat.Alpha8,
-                TextureFormat.RGB565,
-                TextureFormat.R16,
-                TextureFormat.RGBAHalf,
-                TextureFormat.RGBAFloat,
-                TextureFormat.BGRA32,
-                TextureFormat.RG16,
-                TextureFormat.R8
-            };
-            
-            long totalUncompressedSize = 0;
-            foreach (var asset in exportableAssets)
-            {
-                if (asset.Type == ClassIDType.Texture2D && asset.Asset is Texture2D texture2D)
-                {
-                    if (uncompressedFormats.Contains(texture2D.m_TextureFormat))
-                    {
-                        // 创建新的 AssetItem
-                        var item = new AssetItem(asset.Asset);
-                        item.Text = asset.Text; // 第0列: Name
-                        // SubItems从第2列开始（第1列已经有了Text）
-                        item.SubItems.Add(texture2D.m_TextureFormat.ToString()); // 第1列: Format
-                        item.SubItems.Add(texture2D.m_Width.ToString()); // 第2列: Width
-                        item.SubItems.Add(texture2D.m_Height.ToString()); // 第3列: Height
-                        item.SubItems.Add($"{asset.FullSize / 1024f:F2} KB"); // 第4列: Size
-                        item.SubItems.Add(asset.Container); // 第5列: Container
-                        
-                        uncompressedTextures.Add(item);
-                        totalUncompressedSize += asset.FullSize;
-                    }
-                }
-            }
-            
-            // 按 FullSize 从大到小排序
-            uncompressedTextures.Sort((a, b) => b.FullSize.CompareTo(a.FullSize));
-            
-            uncompressedTexturesListView.VirtualListSize = uncompressedTextures.Count;
-            uncompressedTotalLabel.Text = $"未压缩纹理总数: {uncompressedTextures.Count}  总大小: {totalUncompressedSize / (1024f * 1024f):F2} MB";
+            // 执行纹理专项检测（根据下拉框选择）
+            PerformTextureDetection();
 
             sceneTreeView.BeginUpdate();
             sceneTreeView.Nodes.AddRange(treeNodeCollection.ToArray());
@@ -882,6 +840,9 @@ namespace AssetStudio.GUI
             }
             sortColumn = e.Column;
             
+            uncompressedTexturesListView.BeginUpdate();
+            uncompressedTexturesListView.SelectedIndices.Clear();
+            
             uncompressedTextures.Sort((a, b) =>
             {
                 int result = 0;
@@ -908,7 +869,7 @@ namespace AssetStudio.GUI
                 return reverseSort ? -result : result;
             });
             
-            uncompressedTexturesListView.Invalidate();
+            uncompressedTexturesListView.EndUpdate();
         }
 
         private void redundanteRessourcenListViewSelectAsset(object sender, ListViewItemSelectionChangedEventArgs e)
@@ -3177,5 +3138,101 @@ namespace AssetStudio.GUI
             }
         }
         #endregion
+
+        private void textureDetectionComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            // 当下拉框选择改变时，重新执行检测
+            if (exportableAssets.Count > 0)
+            {
+                PerformTextureDetection();
+            }
+        }
+
+        private void PerformTextureDetection()
+        {
+            uncompressedTextures.Clear();
+            
+            if (textureDetectionComboBox.SelectedIndex == 0)
+            {
+                // 选项一：未压缩纹理检测
+                DetectUncompressedTextures();
+            }
+            else if (textureDetectionComboBox.SelectedIndex == 1)
+            {
+                // 选项二：2048x4096纹理检测
+                Detect2048x4096Textures();
+            }
+        }
+
+        private void DetectUncompressedTextures()
+        {
+            var uncompressedFormats = new[] {
+                TextureFormat.RGBA32,
+                TextureFormat.ARGB32,
+                TextureFormat.RGB24,
+                TextureFormat.RGBA4444,
+                TextureFormat.ARGB4444,
+                TextureFormat.RGB565,
+                TextureFormat.R16,
+                TextureFormat.RGBAHalf,
+                TextureFormat.RGBAFloat,
+                TextureFormat.BGRA32,
+                TextureFormat.RG16,
+                TextureFormat.R8
+            };
+            
+            long totalSize = 0;
+            foreach (var asset in exportableAssets)
+            {
+                if (asset.Type == ClassIDType.Texture2D && asset.Asset is Texture2D texture2D)
+                {
+                    if (uncompressedFormats.Contains(texture2D.m_TextureFormat))
+                    {
+                        var item = new AssetItem(asset.Asset);
+                        item.Text = asset.Text;
+                        item.SubItems.Add(texture2D.m_TextureFormat.ToString());
+                        item.SubItems.Add(texture2D.m_Width.ToString());
+                        item.SubItems.Add(texture2D.m_Height.ToString());
+                        item.SubItems.Add($"{asset.FullSize / 1024f:F2} KB");
+                        item.SubItems.Add(asset.Container);
+                        
+                        uncompressedTextures.Add(item);
+                        totalSize += asset.FullSize;
+                    }
+                }
+            }
+            
+            uncompressedTextures.Sort((a, b) => b.FullSize.CompareTo(a.FullSize));
+            uncompressedTexturesListView.VirtualListSize = uncompressedTextures.Count;
+            uncompressedTotalLabel.Text = $"未压缩纹理总数: {uncompressedTextures.Count}  总大小: {totalSize / (1024f * 1024f):F2} MB";
+        }
+
+        private void Detect2048x4096Textures()
+        {
+            long totalSize = 0;
+            foreach (var asset in exportableAssets)
+            {
+                if (asset.Type == ClassIDType.Texture2D && asset.Asset is Texture2D texture2D)
+                {
+                    if (texture2D.m_Width == 2048 && texture2D.m_Height == 4096)
+                    {
+                        var item = new AssetItem(asset.Asset);
+                        item.Text = asset.Text;
+                        item.SubItems.Add(texture2D.m_TextureFormat.ToString());
+                        item.SubItems.Add(texture2D.m_Width.ToString());
+                        item.SubItems.Add(texture2D.m_Height.ToString());
+                        item.SubItems.Add($"{asset.FullSize / 1024f:F2} KB");
+                        item.SubItems.Add(asset.Container);
+                        
+                        uncompressedTextures.Add(item);
+                        totalSize += asset.FullSize;
+                    }
+                }
+            }
+            
+            uncompressedTextures.Sort((a, b) => b.FullSize.CompareTo(a.FullSize));
+            uncompressedTexturesListView.VirtualListSize = uncompressedTextures.Count;
+            uncompressedTotalLabel.Text = $"2048x4096纹理总数: {uncompressedTextures.Count}  总大小: {totalSize / (1024f * 1024f):F2} MB";
+        }
     }
 }

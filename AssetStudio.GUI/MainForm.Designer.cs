@@ -1047,11 +1047,12 @@ namespace AssetStudio.GUI
             tabPage6.UseVisualStyleBackColor = true;
             
             //
-            // tabPage7 - Uncompressed Textures
+            // tabPage7 - 纹理专项检测
             //
             var tabPage7 = new TabPage();
             var uncompressedTexturesPanel = new Panel() { Dock = DockStyle.Fill };
             var uncompressedTexturesListView = new ListView();
+            var textureDetectionComboBox = new ComboBox() { Dock = DockStyle.Top, Height = 25, DropDownStyle = ComboBoxStyle.DropDownList };
             var uncompressedTotalLabel = new Label() { Dock = DockStyle.Top, Height = 25, TextAlign = System.Drawing.ContentAlignment.MiddleLeft, Padding = new Padding(5, 5, 5, 5) };
             var uncompressedColumnHeader1 = new ColumnHeader();
             var uncompressedColumnHeader2 = new ColumnHeader();
@@ -1063,12 +1064,17 @@ namespace AssetStudio.GUI
             tabPage7.Controls.Add(uncompressedTexturesPanel);
             uncompressedTexturesPanel.Controls.Add(uncompressedTexturesListView);
             uncompressedTexturesPanel.Controls.Add(uncompressedTotalLabel);
+            uncompressedTexturesPanel.Controls.Add(textureDetectionComboBox);
             tabPage7.Location = new System.Drawing.Point(4, 22);
             tabPage7.Name = "tabPage7";
             tabPage7.Size = new System.Drawing.Size(472, 608);
             tabPage7.TabIndex = 4;
-            tabPage7.Text = "未压缩纹理";
+            tabPage7.Text = "纹理专项检测";
             tabPage7.UseVisualStyleBackColor = true;
+            
+            textureDetectionComboBox.Items.AddRange(new object[] { "未压缩纹理", "2048x4096纹理" });
+            textureDetectionComboBox.SelectedIndex = 0;
+            textureDetectionComboBox.SelectedIndexChanged += new EventHandler(textureDetectionComboBox_SelectedIndexChanged);
             
             uncompressedTexturesListView.Columns.AddRange(new ColumnHeader[] {
                 uncompressedColumnHeader1,
