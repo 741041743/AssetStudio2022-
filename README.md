@@ -1,5 +1,15 @@
 # Studio
 
+## 增加各类型文件大小分类统计
+<img width="1262" height="707" alt="image" src="https://github.com/user-attachments/assets/a8d3daf6-183f-419d-8e42-bd6fb0e0bf61" />
+
+## 增加重复资源检查功能
+<img width="1264" height="713" alt="image" src="https://github.com/user-attachments/assets/71b982aa-040f-4781-a758-23f573525bd7" />
+
+## 增加未压缩纹理统计
+<img width="1271" height="709" alt="image" src="https://github.com/user-attachments/assets/7f50db00-2399-4525-ae39-426464e335b7" />
+
+## exe目录 ： AssetStudio/AssetStudioGUI/bin/Debug/
 # NOTICE: Project has been temporarily suspended till further notice.
 
 Check out the [original AssetStudio project](https://github.com/Perfare/AssetStudio) for more information.
