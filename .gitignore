@@ -340,3 +340,6 @@ ASALocalRun/
 healthchecksdb
 /AssetStudioCLI/Properties/launchSettings.json
 /AssetStudioGUI/Properties/launchSettings.json
+
+# Server cache directory
+ServerCache/

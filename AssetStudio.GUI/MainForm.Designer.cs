@@ -37,6 +37,7 @@ namespace AssetStudio.GUI
             fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             loadFileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             loadFolderToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            loadServerToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             toolStripMenuItem1 = new System.Windows.Forms.ToolStripSeparator();
             extractFileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             extractFolderToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -213,10 +214,10 @@ namespace AssetStudio.GUI
             menuStrip1.Size = new System.Drawing.Size(1264, 24);
             menuStrip1.TabIndex = 0;
             menuStrip1.Text = "menuStrip1";
-            // 
+            //
             // fileToolStripMenuItem
-            // 
-            fileToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { loadFileToolStripMenuItem, loadFolderToolStripMenuItem, toolStripMenuItem1, extractFileToolStripMenuItem, extractFolderToolStripMenuItem, toolStripSeparator6, resetToolStripMenuItem, abortStripMenuItem });
+            //
+            fileToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { loadFileToolStripMenuItem, loadFolderToolStripMenuItem, loadServerToolStripMenuItem, toolStripMenuItem1, extractFileToolStripMenuItem, extractFolderToolStripMenuItem, toolStripSeparator6, resetToolStripMenuItem, abortStripMenuItem });
             fileToolStripMenuItem.Name = "fileToolStripMenuItem";
             fileToolStripMenuItem.Size = new System.Drawing.Size(37, 20);
             fileToolStripMenuItem.Text = "File";
@@ -229,12 +230,19 @@ namespace AssetStudio.GUI
             loadFileToolStripMenuItem.Click += loadFile_Click;
             // 
             // loadFolderToolStripMenuItem
-            // 
+            //
             loadFolderToolStripMenuItem.Name = "loadFolderToolStripMenuItem";
             loadFolderToolStripMenuItem.Size = new System.Drawing.Size(144, 22);
             loadFolderToolStripMenuItem.Text = "Load folder";
             loadFolderToolStripMenuItem.Click += loadFolder_Click;
-            // 
+            //
+            // loadServerToolStripMenuItem
+            //
+            loadServerToolStripMenuItem.Name = "loadServerToolStripMenuItem";
+            loadServerToolStripMenuItem.Size = new System.Drawing.Size(144, 22);
+            loadServerToolStripMenuItem.Text = "Load server";
+            loadServerToolStripMenuItem.Click += loadServer_Click;
+            //
             // toolStripMenuItem1
             // 
             toolStripMenuItem1.Name = "toolStripMenuItem1";
@@ -1627,6 +1635,7 @@ namespace AssetStudio.GUI
         private System.Windows.Forms.TextBox listSearch;
         private System.Windows.Forms.ToolStripMenuItem loadFileToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem loadFolderToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem loadServerToolStripMenuItem;
         private System.Windows.Forms.ListView assetListView;
         private System.Windows.Forms.ColumnHeader columnHeaderName;
         private System.Windows.Forms.ColumnHeader columnHeaderSize;

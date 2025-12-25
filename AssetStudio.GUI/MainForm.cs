@@ -118,8 +118,8 @@ namespace AssetStudio.GUI
            redundantTotalLabel = (Label)redundanteRessourcenPanel.Controls[2];
            var redundantFilterPanel = (Panel)redundanteRessourcenPanel.Controls[1];
            fileSizeFilterTextBox = (TextBox)redundantFilterPanel.Controls[1];
-           countFilterTextBox = (TextBox)redundantFilterPanel.Controls[3];
-           redundantFilterTextBox = (TextBox)redundantFilterPanel.Controls[5];
+           countFilterTextBox = (TextBox)redundantFilterPanel.Controls[4];
+           redundantFilterTextBox = (TextBox)redundantFilterPanel.Controls[6];
            
            duplicateDetectionComboBox.SelectedIndexChanged += new EventHandler(duplicateDetectionComboBox_SelectedIndexChanged);
            fileSizeFilterTextBox.TextChanged += new EventHandler(FilterRedundantAssets);
@@ -289,6 +289,74 @@ namespace AssetStudio.GUI
             }
         }
 
+        private async void loadServer_Click(object sender, EventArgs e)
+        {
+            var loadServerForm = new LoadServerForm();
+            if (loadServerForm.ShowDialog(this) == DialogResult.OK)
+            {
+                ResetForm();
+                
+                if (loadServerForm.UseLocalCache)
+                {
+                    // 使用本地缓存模式
+                    var cachePath = loadServerForm.LocalCachePath;
+                    var version = loadServerForm.Version;
+                    
+                    StatusStripUpdate($"正在加载本地缓存: {version}");
+                    Logger.Info($"从本地缓存加载: {cachePath}");
+                    
+                    try
+                    {
+                        assetsManager.SpecifyUnityVersion = specifyUnityVersion.Text;
+                        assetsManager.Game = Studio.Game;
+                        await Task.Run(() => assetsManager.LoadFolder(cachePath));
+                        BuildAssetStructures();
+                        StatusStripUpdate($"成功加载本地缓存版本: {version}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error($"加载本地缓存失败: {ex.Message}");
+                        StatusStripUpdate($"加载失败: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    // 从服务器下载模式
+                    var url = loadServerForm.ServerUrl;
+                    var version = loadServerForm.Version;
+                    
+                    StatusStripUpdate($"正在从服务器加载: {url} (版本: {version})");
+                    
+                    try
+                    {
+                        var cachePath = await ServerLoader.LoadFromServer(url, version, Progress.Default);
+                        
+                        if (!string.IsNullOrEmpty(cachePath))
+                        {
+                            StatusStripUpdate("下载完成，正在加载资源...");
+                            Logger.Info($"开始加载下载的资源: {cachePath}");
+                            
+                            assetsManager.SpecifyUnityVersion = specifyUnityVersion.Text;
+                            assetsManager.Game = Studio.Game;
+                            await Task.Run(() => assetsManager.LoadFolder(cachePath));
+                            BuildAssetStructures();
+                            
+                            StatusStripUpdate($"成功从服务器加载版本: {version}");
+                        }
+                        else
+                        {
+                            StatusStripUpdate("从服务器下载资源失败");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error($"从服务器加载失败: {ex.Message}");
+                        StatusStripUpdate($"错误: {ex.Message}");
+                    }
+                }
+            }
+        }
+
         private async void extractFileToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (openFileDialog1.ShowDialog(this) == DialogResult.OK)
@@ -390,14 +458,16 @@ namespace AssetStudio.GUI
               .OrderByDescending(x => x.TotalSize)
               .ToList();
 
+          // 清空并重新填充ComboBox
+          classIDTypeComboBox.Items.Clear();
           classIDTypeComboBox.Items.Add("All");
           foreach (var typeSize in typeSizes)
           {
               var sizeInMB = typeSize.TotalSize / (1024f * 1024f);
               classIDTypeComboBox.Items.Add($"{typeSize.Type} ({sizeInMB:F2} MB)");
           }
+          classIDTypeComboBox.SelectedIndexChanged -= (s, e) => FilterAssetList();
           classIDTypeComboBox.SelectedIndex = 0;
-
           classIDTypeComboBox.SelectedIndexChanged += (s, e) => FilterAssetList();
 
            var types = exportableAssets.Select(x => x.Type).Distinct().OrderBy(x => x.ToString()).ToArray();
