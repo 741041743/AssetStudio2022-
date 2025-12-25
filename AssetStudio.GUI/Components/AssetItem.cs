@@ -3,6 +3,20 @@ using System.Windows.Forms;
 
 namespace AssetStudio.GUI
 {
+    public class DuplicateAssetInfo
+    {
+        public string Name { get; set; }
+        public long PathID { get; set; }
+        public string Container { get; set; }
+        
+        public DuplicateAssetInfo(string name, long pathID, string container)
+        {
+            Name = name;
+            PathID = pathID;
+            Container = container;
+        }
+    }
+    
     public class AssetItem : ListViewItem
     {
         public Object Asset;
@@ -18,6 +32,7 @@ namespace AssetStudio.GUI
         public GameObjectTreeNode TreeNode;
         public string AllContainer = string.Empty;
         public List<long> SubItemValues = new List<long>();
+        public List<DuplicateAssetInfo> DuplicateAssets = new List<DuplicateAssetInfo>();
 
         public AssetItem(Object asset)
         {

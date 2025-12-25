@@ -1038,17 +1038,60 @@ namespace AssetStudio.GUI
             //
             // tabPage6
             //
-            tabPage6.Controls.Add(redundanteRessourcenListView);
+            var redundanteRessourcenPanel = new Panel() { Dock = DockStyle.Fill };
+            var duplicateDetectionComboBox = new ComboBox() { Dock = DockStyle.Top, Height = 25, DropDownStyle = ComboBoxStyle.DropDownList };
+            var redundantTotalLabel = new Label() { Dock = DockStyle.Top, Height = 25, TextAlign = System.Drawing.ContentAlignment.MiddleLeft, Padding = new Padding(5, 5, 5, 5) };
+            
+            // 筛选条件面板 - 使用FlowLayoutPanel实现自动布局
+            var redundantFilterPanel = new FlowLayoutPanel()
+            {
+                Dock = DockStyle.Top,
+                Height = 30,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                Padding = new Padding(5, 5, 5, 0)
+            };
+            
+            var fileSizeLabel = new Label() { Text = "单个文件 >", AutoSize = true, Margin = new Padding(0, 3, 3, 0) };
+            var fileSizeTextBox = new TextBox() { Text = "0", Width = 50, Margin = new Padding(0, 0, 5, 0) };
+            var fileSizeUnitLabel = new Label() { Text = "MB", AutoSize = true, Margin = new Padding(0, 3, 15, 0) };
+            
+            var countLabel = new Label() { Text = "相同数量 >", AutoSize = true, Margin = new Padding(0, 3, 3, 0) };
+            var countTextBox = new TextBox() { Text = "0", Width = 50, Margin = new Padding(0, 0, 15, 0) };
+            
+            var redundantLabel = new Label() { Text = "冗余大小 >", AutoSize = true, Margin = new Padding(0, 3, 3, 0) };
+            var redundantTextBox = new TextBox() { Text = "0", Width = 50, Margin = new Padding(0, 0, 5, 0) };
+            var redundantUnitLabel = new Label() { Text = "MB", AutoSize = true, Margin = new Padding(0, 3, 0, 0) };
+            
+            redundantFilterPanel.Controls.Add(fileSizeLabel);
+            redundantFilterPanel.Controls.Add(fileSizeTextBox);
+            redundantFilterPanel.Controls.Add(fileSizeUnitLabel);
+            redundantFilterPanel.Controls.Add(countLabel);
+            redundantFilterPanel.Controls.Add(countTextBox);
+            redundantFilterPanel.Controls.Add(redundantLabel);
+            redundantFilterPanel.Controls.Add(redundantTextBox);
+            redundantFilterPanel.Controls.Add(redundantUnitLabel);
+            
+            tabPage6.Controls.Add(redundanteRessourcenPanel);
+            redundanteRessourcenPanel.Controls.Add(redundanteRessourcenListView);
+            redundanteRessourcenPanel.Controls.Add(redundantFilterPanel);
+            redundanteRessourcenPanel.Controls.Add(redundantTotalLabel);
+            redundanteRessourcenPanel.Controls.Add(duplicateDetectionComboBox);
+            
+            duplicateDetectionComboBox.Items.AddRange(new object[] { "重复打进ab资源检测", "相同文件内容资源检测" });
+            duplicateDetectionComboBox.SelectedIndex = 0;
+            
             tabPage6.Location = new System.Drawing.Point(4, 22);
             tabPage6.Name = "tabPage6";
             tabPage6.Size = new System.Drawing.Size(472, 608);
             tabPage6.TabIndex = 3;
-            tabPage6.Text = "检查重复资源";
+            tabPage6.Text = "重复资源检查";
             tabPage6.UseVisualStyleBackColor = true;
             
             //
             // tabPage7 - 纹理专项检测
             //
+            
             var tabPage7 = new TabPage();
             var uncompressedTexturesPanel = new Panel() { Dock = DockStyle.Fill };
             var uncompressedTexturesListView = new ListView();
@@ -1126,6 +1169,7 @@ namespace AssetStudio.GUI
             redundanteRessourcenColumnHeader6
             });
             redundanteRessourcenListView.Dock = System.Windows.Forms.DockStyle.Fill;
+            redundanteRessourcenListView.Location = new System.Drawing.Point(0, 80);
             redundanteRessourcenListView.FullRowSelect = true;
             redundanteRessourcenListView.GridLines = true;
             redundanteRessourcenListView.HideSelection = false;

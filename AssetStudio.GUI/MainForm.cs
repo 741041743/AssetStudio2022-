@@ -31,7 +31,13 @@ namespace AssetStudio.GUI
         private ListView uncompressedTexturesListView;
         private Label uncompressedTotalLabel;
         private ComboBox textureDetectionComboBox;
+        private ComboBox duplicateDetectionComboBox;
+        private Label redundantTotalLabel;
+        private TextBox fileSizeFilterTextBox;
+        private TextBox countFilterTextBox;
+        private TextBox redundantFilterTextBox;
         private List<AssetItem> uncompressedTextures = new List<AssetItem>();
+        private List<AssetItem> allRedundantAssets = new List<AssetItem>(); // 存储所有重复资源，用于筛选
         private AssetItem lastSelectedItem;
         private AssetBrowser assetBrowser;
         private DirectBitmap imageTexture;
@@ -104,8 +110,23 @@ namespace AssetStudio.GUI
            uncompressedTexturesListView = (ListView)uncompressedPanel.Controls[0];
            uncompressedTotalLabel = (Label)uncompressedPanel.Controls[1];
            textureDetectionComboBox = (ComboBox)uncompressedPanel.Controls[2];
+           
+           // 获取重复资源检测下拉框、Label和筛选输入框
+           var tabPage6 = tabControl1.TabPages[2];
+           var redundanteRessourcenPanel = (Panel)tabPage6.Controls[0];
+           duplicateDetectionComboBox = (ComboBox)redundanteRessourcenPanel.Controls[3];
+           redundantTotalLabel = (Label)redundanteRessourcenPanel.Controls[2];
+           var redundantFilterPanel = (Panel)redundanteRessourcenPanel.Controls[1];
+           fileSizeFilterTextBox = (TextBox)redundantFilterPanel.Controls[1];
+           countFilterTextBox = (TextBox)redundantFilterPanel.Controls[3];
+           redundantFilterTextBox = (TextBox)redundantFilterPanel.Controls[5];
+           
+           duplicateDetectionComboBox.SelectedIndexChanged += new EventHandler(duplicateDetectionComboBox_SelectedIndexChanged);
+           fileSizeFilterTextBox.TextChanged += new EventHandler(FilterRedundantAssets);
+           countFilterTextBox.TextChanged += new EventHandler(FilterRedundantAssets);
+           redundantFilterTextBox.TextChanged += new EventHandler(FilterRedundantAssets);
 
-            Text = $"Studio v{Application.ProductVersion}";
+           Text = $"Studio v{Application.ProductVersion}";
             InitializeExportOptions();
             InitializeProgressBar();
             InitializeLogger();
@@ -332,6 +353,12 @@ namespace AssetStudio.GUI
 
             assetListView.VirtualListSize = visibleAssets.Count;
             redundanteRessourcenListView.VirtualListSize = redundanzAssets.Count;
+            
+            // 初始化时存储所有重复资源
+            allRedundantAssets = new List<AssetItem>(redundanzAssets);
+            
+            // 更新重复资源统计信息
+            UpdateRedundantStatistics();
             
             // 执行纹理专项检测（根据下拉框选择）
             PerformTextureDetection();
@@ -909,7 +936,37 @@ namespace AssetStudio.GUI
                 }
                 if (enablePreview.Checked)
                 {
-                    PreviewText(("包含此资源的AssetBundle:\n" + lastSelectedItem.AllContainer).Replace("\n", "\r\n").Replace("\0", ""));
+                    var mode = duplicateDetectionComboBox.SelectedIndex;
+                    if (mode == 1 && lastSelectedItem.DuplicateAssets.Count > 0)
+                    {
+                        // 模式2：按PathID分组显示重复资源的详细信息
+                        var detailText = "相同内容的资源列表:\n\n";
+                        
+                        // 按PathID分组
+                        var groupedByPathID = lastSelectedItem.DuplicateAssets
+                            .GroupBy(x => x.PathID)
+                            .OrderBy(g => g.Key);
+                        
+                        foreach (var pathIDGroup in groupedByPathID)
+                        {
+                            detailText += $"PathID: {pathIDGroup.Key}\n";
+                            
+                            // 列出该PathID下的所有资源（保持Name和Container的对应关系）
+                            foreach (var asset in pathIDGroup)
+                            {
+                                detailText += $"  Name: {asset.Name}  |  Container: {asset.Container}\n";
+                            }
+                            
+                            detailText += "----------------------------------------\n";
+                        }
+                        PreviewText(detailText.Replace("\n", "\r\n").Replace("\0", ""));
+                    }
+                    else
+                    {
+                        // 模式1：显示原有的 AssetBundle 信息
+                        PreviewText(("包含此资源的AssetBundle:\n" + lastSelectedItem.AllContainer).Replace("\n", "\r\n").Replace("\0", ""));
+                    }
+                    
                     if (displayInfo.Checked && lastSelectedItem.InfoText != null)
                     {
                         assetInfoLabel.Text = lastSelectedItem.InfoText;
@@ -3273,6 +3330,96 @@ namespace AssetStudio.GUI
             // 记录当前排序状态：Size列降序
             sortColumn = 4;
             reverseSort = true;
+        }
+        
+        private void duplicateDetectionComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            var mode = duplicateDetectionComboBox.SelectedIndex;
+            
+            // 控制 Name 和 PathID 列的显示
+            if (mode == 1)
+            {
+                // 模式2：隐藏 Name 和 PathID 列
+                redundanteRessourcenListView.Columns[0].Width = 0; // Name
+                redundanteRessourcenListView.Columns[1].Width = 0; // PathID
+            }
+            else
+            {
+                // 模式1：显示 Name 和 PathID 列
+                redundanteRessourcenListView.Columns[0].Width = 120; // Name
+                redundanteRessourcenListView.Columns[1].Width = 120; // PathID
+            }
+            
+            // 当下拉框选择改变时，重新构建资产数据
+            if (exportableAssets.Count > 0)
+            {
+                StatusStripUpdate("正在根据新规则检测重复资源...");
+                allRedundantAssets.Clear();
+                redundanzAssets.Clear();
+                BuildDuplicateAssets();
+                allRedundantAssets = new List<AssetItem>(redundanzAssets);
+                FilterRedundantAssets(null, null);
+                StatusStripUpdate($"检测完成，发现 {redundanzAssets.Count} 个重复资源组");
+            }
+        }
+        
+        private void UpdateRedundantStatistics()
+        {
+            // 计算冗余总大小和数量
+            long totalRedundantSize = 0;
+            int totalRedundantCount = 0;
+            foreach (var asset in redundanzAssets)
+            {
+                if (asset.Gesamtzahl > 1)
+                {
+                    totalRedundantSize += asset.FullSize * (asset.Gesamtzahl - 1);
+                    totalRedundantCount += asset.Gesamtzahl - 1;
+                }
+            }
+            
+            redundantTotalLabel.Text = $"重复资源组: {redundanzAssets.Count}  冗余数量: {totalRedundantCount}  冗余大小: {totalRedundantSize / (1024f * 1024f):F2} MB";
+        }
+        
+        private void BuildDuplicateAssets()
+        {
+            var mode = duplicateDetectionComboBox.SelectedIndex;
+            Studio.BuildRedundantAssets(mode);
+        }
+        
+        private void FilterRedundantAssets(object sender, EventArgs e)
+        {
+            if (allRedundantAssets == null || allRedundantAssets.Count == 0)
+            {
+                return;
+            }
+            
+            // 解析筛选条件
+            if (!float.TryParse(fileSizeFilterTextBox.Text, out float minFileSizeMB))
+            {
+                minFileSizeMB = 0;
+            }
+            if (!int.TryParse(countFilterTextBox.Text, out int minCount))
+            {
+                minCount = 0;
+            }
+            if (!float.TryParse(redundantFilterTextBox.Text, out float minRedundantSizeMB))
+            {
+                minRedundantSizeMB = 0;
+            }
+            
+            // 应用筛选
+            redundanzAssets = allRedundantAssets.Where(asset =>
+            {
+                var fileSizeMB = asset.FullSize / (1024f * 1024f);
+                var redundantSizeMB = (asset.FullSize * (asset.Gesamtzahl - 1)) / (1024f * 1024f);
+                
+                return fileSizeMB > minFileSizeMB
+                    && asset.Gesamtzahl > minCount
+                    && redundantSizeMB > minRedundantSizeMB;
+            }).ToList();
+            
+            redundanteRessourcenListView.VirtualListSize = redundanzAssets.Count;
+            UpdateRedundantStatistics();
         }
     }
 }
