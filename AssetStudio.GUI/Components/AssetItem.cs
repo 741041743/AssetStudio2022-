@@ -1,4 +1,5 @@
-﻿using System.Windows.Forms;
+﻿using System.Collections.Generic;
+using System.Windows.Forms;
 
 namespace AssetStudio.GUI
 {
@@ -16,6 +17,7 @@ namespace AssetStudio.GUI
         public int Gesamtzahl;
         public GameObjectTreeNode TreeNode;
         public string AllContainer = string.Empty;
+        public List<long> SubItemValues = new List<long>();
 
         public AssetItem(Object asset)
         {

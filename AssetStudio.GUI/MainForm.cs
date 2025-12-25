@@ -843,31 +843,43 @@ namespace AssetStudio.GUI
             uncompressedTexturesListView.BeginUpdate();
             uncompressedTexturesListView.SelectedIndices.Clear();
             
-            uncompressedTextures.Sort((a, b) =>
+            // 完全照搬AssetList的排序逻辑
+            if (sortColumn == 4) //FullSize
             {
-                int result = 0;
-                switch (sortColumn)
+                uncompressedTextures.Sort((a, b) =>
                 {
-                    case 0: // Name
-                        result = string.Compare(a.Text, b.Text);
-                        break;
-                    case 1: // Format
-                        result = string.Compare(a.SubItems[sortColumn].Text, b.SubItems[sortColumn].Text);
-                        break;
-                    case 2: // Width
-                    case 3: // Height
-                        if (int.TryParse(a.SubItems[sortColumn].Text, out int aVal) &&
-                            int.TryParse(b.SubItems[sortColumn].Text, out int bVal))
-                        {
-                            result = aVal.CompareTo(bVal);
-                        }
-                        break;
-                    case 4: // Size - 按FullSize排序
-                        result = a.FullSize.CompareTo(b.FullSize);
-                        break;
-                }
-                return reverseSort ? -result : result;
-            });
+                    var asf = a.FullSize;
+                    var bsf = b.FullSize;
+                    return reverseSort ? bsf.CompareTo(asf) : asf.CompareTo(bsf);
+                });
+            }
+            else if (sortColumn == 3) //Heigth
+            {
+                uncompressedTextures.Sort((a, b) =>
+                {
+                    var asf = a.SubItemValues[1];
+                    var bsf = b.SubItemValues[1];
+                    return reverseSort ? bsf.CompareTo(asf) : asf.CompareTo(bsf);
+                });
+            }
+            else if (sortColumn == 2) //Width
+            {
+                uncompressedTextures.Sort((a, b) =>
+                {
+                    var asf = a.SubItemValues[0];
+                    var bsf = b.SubItemValues[0];
+                    return reverseSort ? bsf.CompareTo(asf) : asf.CompareTo(bsf);
+                });
+            }
+            else
+            {
+                uncompressedTextures.Sort((a, b) =>
+                {
+                    var at = a.SubItems[sortColumn].Text;
+                    var bt = b.SubItems[sortColumn].Text;
+                    return reverseSort ? bt.CompareTo(at) : at.CompareTo(bt);
+                });
+            }
             
             uncompressedTexturesListView.EndUpdate();
         }
@@ -1639,6 +1651,7 @@ namespace AssetStudio.GUI
             redundanteRessourcenListView.VirtualListSize = 0;
             redundanteRessourcenListView.Items.Clear();
             uncompressedTexturesListView.VirtualListSize = 0;
+            uncompressedTexturesListView.Items.Clear();
             uncompressedTextures.Clear();
             classesListView.Items.Clear();
             classesListView.Groups.Clear();
@@ -3180,7 +3193,7 @@ namespace AssetStudio.GUI
                 TextureFormat.RG16,
                 TextureFormat.R8
             };
-            
+            uncompressedTextures.Clear();
             long totalSize = 0;
             foreach (var asset in exportableAssets)
             {
@@ -3188,23 +3201,36 @@ namespace AssetStudio.GUI
                 {
                     if (uncompressedFormats.Contains(texture2D.m_TextureFormat))
                     {
+                        // 创建新AssetItem并手动设置FullSize
                         var item = new AssetItem(asset.Asset);
                         item.Text = asset.Text;
-                        item.SubItems.Add(texture2D.m_TextureFormat.ToString());
-                        item.SubItems.Add(texture2D.m_Width.ToString());
-                        item.SubItems.Add(texture2D.m_Height.ToString());
-                        item.SubItems.Add($"{asset.FullSize / 1024f:F2} KB");
-                        item.SubItems.Add(asset.Container);
+                        item.Container = asset.Container;
+                        item.FullSize = asset.FullSize;  // 手动设置FullSize
+                        item.SubItems.AddRange(new string[] {
+                            texture2D.m_TextureFormat.ToString(),
+                            texture2D.m_Width.ToString(),
+                            texture2D.m_Height.ToString(),
+                            $"{asset.FullSize / 1024f:F2} KB",
+                            asset.Container
+                        });
+                        item.SubItemValues.AddRange(new long[] {
+                            texture2D.m_Width,
+                            texture2D.m_Height
+                        });
                         
                         uncompressedTextures.Add(item);
                         totalSize += asset.FullSize;
                     }
                 }
             }
-            
-            uncompressedTextures.Sort((a, b) => b.FullSize.CompareTo(a.FullSize));
             uncompressedTexturesListView.VirtualListSize = uncompressedTextures.Count;
+            uncompressedTextures.Sort((a, b) => b.FullSize.CompareTo(a.FullSize));
+
             uncompressedTotalLabel.Text = $"未压缩纹理总数: {uncompressedTextures.Count}  总大小: {totalSize / (1024f * 1024f):F2} MB";
+            
+            // 记录当前排序状态：Size列降序
+            sortColumn = 4;
+            reverseSort = true;
         }
 
         private void Detect2048x4096Textures()
@@ -3216,13 +3242,22 @@ namespace AssetStudio.GUI
                 {
                     if (texture2D.m_Width == 2048 && texture2D.m_Height == 4096)
                     {
+                        // 创建新AssetItem并手动设置FullSize
                         var item = new AssetItem(asset.Asset);
                         item.Text = asset.Text;
-                        item.SubItems.Add(texture2D.m_TextureFormat.ToString());
-                        item.SubItems.Add(texture2D.m_Width.ToString());
-                        item.SubItems.Add(texture2D.m_Height.ToString());
-                        item.SubItems.Add($"{asset.FullSize / 1024f:F2} KB");
-                        item.SubItems.Add(asset.Container);
+                        item.Container = asset.Container;
+                        item.FullSize = asset.FullSize;  // 手动设置FullSize
+                        item.SubItems.AddRange(new string[] {
+                            texture2D.m_TextureFormat.ToString(),
+                            texture2D.m_Width.ToString(),
+                            texture2D.m_Height.ToString(),
+                            $"{asset.FullSize / 1024f:F2} KB",
+                            asset.Container
+                        });
+                        item.SubItemValues.AddRange(new long[] {
+                            texture2D.m_Width,
+                            texture2D.m_Height
+                        });
                         
                         uncompressedTextures.Add(item);
                         totalSize += asset.FullSize;
@@ -3230,9 +3265,14 @@ namespace AssetStudio.GUI
                 }
             }
             
-            uncompressedTextures.Sort((a, b) => b.FullSize.CompareTo(a.FullSize));
             uncompressedTexturesListView.VirtualListSize = uncompressedTextures.Count;
+            uncompressedTextures.Sort((a, b) => b.FullSize.CompareTo(a.FullSize));
+
             uncompressedTotalLabel.Text = $"2048x4096纹理总数: {uncompressedTextures.Count}  总大小: {totalSize / (1024f * 1024f):F2} MB";
+            
+            // 记录当前排序状态：Size列降序
+            sortColumn = 4;
+            reverseSort = true;
         }
     }
 }
