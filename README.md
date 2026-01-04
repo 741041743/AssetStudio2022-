@@ -2,12 +2,16 @@
 
 ## 增加各类型文件大小分类统计
 <img width="1262" height="707" alt="image" src="https://github.com/user-attachments/assets/a8d3daf6-183f-419d-8e42-bd6fb0e0bf61" />
+
 ## 增加纹理压缩专项细分
 <img width="1280" height="720" alt="image" src="https://github.com/user-attachments/assets/53516fb2-5ca7-4d25-b34f-beb6bbad4eb6" />
+
 ## 增加重复资源检查功能
 <img width="1264" height="713" alt="image" src="https://github.com/user-attachments/assets/71b982aa-040f-4781-a758-23f573525bd7" />
+
 ## 增加AB专项检测
 <img width="1280" height="720" alt="image" src="https://github.com/user-attachments/assets/9de13d3e-ed0a-430d-b936-7ea005cc8957" />
+
 ## 增加纹理纹理专项检测
 <img width="1280" height="720" alt="image" src="https://github.com/user-attachments/assets/2c51192c-86a9-49d8-83b8-5b5a9eb097ab" />
 
