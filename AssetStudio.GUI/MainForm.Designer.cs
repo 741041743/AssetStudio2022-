@@ -1119,31 +1119,53 @@ namespace AssetStudio.GUI
             tabPage6.UseVisualStyleBackColor = true;
             
             //
-            // tabPage8 - AB专项检测
+            // tabPage8 - AB单体专项检测
             //
             
             var tabPage8 = new TabPage();
             var assetBundlePanel = new Panel() { Dock = DockStyle.Fill };
             var assetBundleTreeView = new TreeView();
             var assetBundleSearch = new TextBox() { Dock = DockStyle.Top, PlaceholderText = "Search", Height = 23 };
-            var assetBundleSortComboBox = new ComboBox() { Dock = DockStyle.Top, Height = 25, DropDownStyle = ComboBoxStyle.DropDownList };
+            
+            // 筛选面板：排序选择 + 大小筛选
+            var assetBundleFilterPanel = new FlowLayoutPanel()
+            {
+                Dock = DockStyle.Top,
+                Height = 30,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                Padding = new Padding(5, 2, 5, 0)
+            };
+            
+            var assetBundleSortComboBox = new ComboBox() { Width = 120, DropDownStyle = ComboBoxStyle.DropDownList, Margin = new Padding(0, 0, 15, 0) };
+            var bundleSizeLabel = new Label() { Text = "AB大小 >", AutoSize = true, Margin = new Padding(0, 5, 3, 0) };
+            var bundleSizeFilterTextBox = new TextBox() { Text = "0", Width = 50, Margin = new Padding(0, 2, 5, 0) };
+            var bundleSizeUnitLabel = new Label() { Text = "MB", AutoSize = true, Margin = new Padding(0, 5, 0, 0) };
+            
+            assetBundleFilterPanel.Controls.Add(assetBundleSortComboBox);
+            assetBundleFilterPanel.Controls.Add(bundleSizeLabel);
+            assetBundleFilterPanel.Controls.Add(bundleSizeFilterTextBox);
+            assetBundleFilterPanel.Controls.Add(bundleSizeUnitLabel);
+            
             var assetBundleTotalLabel = new Label() { Dock = DockStyle.Top, Height = 25, TextAlign = System.Drawing.ContentAlignment.MiddleLeft, Padding = new Padding(5, 5, 5, 5) };
             
             tabPage8.Controls.Add(assetBundlePanel);
             assetBundlePanel.Controls.Add(assetBundleTreeView);
             assetBundlePanel.Controls.Add(assetBundleSearch);
-            assetBundlePanel.Controls.Add(assetBundleSortComboBox);
+            assetBundlePanel.Controls.Add(assetBundleFilterPanel);
             assetBundlePanel.Controls.Add(assetBundleTotalLabel);
             
             assetBundleSortComboBox.Items.AddRange(new object[] { "按大小排序", "按名称排序", "按数量排序" });
             assetBundleSortComboBox.SelectedIndex = 0;
             assetBundleSortComboBox.SelectedIndexChanged += new EventHandler(assetBundleSortComboBox_SelectedIndexChanged);
             
+            bundleSizeFilterTextBox.TextChanged += new EventHandler(bundleSizeFilterTextBox_TextChanged);
+            
             tabPage8.Location = new System.Drawing.Point(4, 22);
             tabPage8.Name = "tabPage8";
             tabPage8.Size = new System.Drawing.Size(472, 608);
             tabPage8.TabIndex = 4;
-            tabPage8.Text = "AB专项检测";
+            tabPage8.Text = "AB单体专项检测";
             tabPage8.UseVisualStyleBackColor = true;
             
             assetBundleTreeView.Dock = DockStyle.Fill;

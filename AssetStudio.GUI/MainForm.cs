@@ -43,6 +43,8 @@ namespace AssetStudio.GUI
         private Label assetBundleTotalLabel;
         private TextBox assetBundleSearch;
         private ComboBox assetBundleSortComboBox;
+        private TextBox bundleSizeFilterTextBox;
+        private System.Timers.Timer bundleSizeFilterTimer;
         private Dictionary<string, List<AssetItem>> assetBundleDict = new Dictionary<string, List<AssetItem>>();
         private List<AssetItem> uncompressedTextures = new List<AssetItem>();
         private List<AssetItem> allRedundantAssets = new List<AssetItem>(); // 存储所有重复资源，用于筛选
@@ -121,13 +123,31 @@ namespace AssetStudio.GUI
            sizeFilterTextBox.TextChanged += (s, e) => FilterAssetList();
            textureFormatComboBox.SelectedIndexChanged += (s, e) => FilterAssetList();
            
-           // 获取AB专项检测TreeView、Label、搜索框和排序下拉框
+           // 获取AB专项检测TreeView、Label、搜索框、排序下拉框和筛选输入框
            var tabPage8 = tabControl1.TabPages[4];
            var assetBundlePanel = (Panel)tabPage8.Controls[0];
            assetBundleTreeView = (TreeView)assetBundlePanel.Controls[0];
            assetBundleSearch = (TextBox)assetBundlePanel.Controls[1];
-           assetBundleSortComboBox = (ComboBox)assetBundlePanel.Controls[2];
+           var assetBundleFilterPanel = (FlowLayoutPanel)assetBundlePanel.Controls[2];
            assetBundleTotalLabel = (Label)assetBundlePanel.Controls[3];
+           
+           assetBundleSortComboBox = (ComboBox)assetBundleFilterPanel.Controls[0];
+           bundleSizeFilterTextBox = (TextBox)assetBundleFilterPanel.Controls[2];
+           
+           // 初始化防抖Timer
+           bundleSizeFilterTimer = new System.Timers.Timer(500); // 500毫秒延迟
+           bundleSizeFilterTimer.AutoReset = false;
+           bundleSizeFilterTimer.Elapsed += (s, e) =>
+           {
+               if (InvokeRequired)
+               {
+                   BeginInvoke(new Action(FilterAssetBundleTree));
+               }
+               else
+               {
+                   FilterAssetBundleTree();
+               }
+           };
            
            assetBundleSearch.KeyPress += assetBundleSearch_KeyPress;
            
@@ -1984,6 +2004,7 @@ namespace AssetStudio.GUI
             assetBundleDict.Clear();
             assetBundleTreeView.Nodes.Clear();
             assetBundleSearch.Text = string.Empty;
+            bundleSizeFilterTextBox.Text = "0";
             assetBundleTotalLabel.Text = string.Empty;
             classesListView.Items.Clear();
             classesListView.Groups.Clear();
@@ -3685,7 +3706,8 @@ namespace AssetStudio.GUI
             {
                 if (asset.Type == ClassIDType.Texture2D && asset.Asset is Texture2D texture2D)
                 {
-                    if (texture2D.m_Width == 2048 && texture2D.m_Height == 4096)
+                    // 修改条件：只要宽度或高度大于2048就筛选出来
+                    if (texture2D.m_Width > 2048 || texture2D.m_Height > 2048)
                     {
                         // 创建新AssetItem并手动设置FullSize
                         var item = new AssetItem(asset.Asset);
@@ -3713,7 +3735,7 @@ namespace AssetStudio.GUI
             uncompressedTexturesListView.VirtualListSize = uncompressedTextures.Count;
             uncompressedTextures.Sort((a, b) => b.FullSize.CompareTo(a.FullSize));
 
-            uncompressedTotalLabel.Text = $"2048x4096纹理总数: {uncompressedTextures.Count}  总大小: {totalSize / (1024f * 1024f):F2} MB";
+            uncompressedTotalLabel.Text = $"大尺寸纹理(>2048)总数: {uncompressedTextures.Count}  总大小: {totalSize / (1024f * 1024f):F2} MB";
             
             // 记录当前排序状态：Size列降序
             sortColumn = 4;
@@ -3886,6 +3908,7 @@ namespace AssetStudio.GUI
             var searchText = assetBundleSearch.Text.Trim();
             var filteredDict = assetBundleDict;
             
+            // 应用搜索过滤
             if (!string.IsNullOrEmpty(searchText))
             {
                 try
@@ -3905,8 +3928,23 @@ namespace AssetStudio.GUI
                 }
             }
             
+            // 应用大小筛选
+            if (float.TryParse(bundleSizeFilterTextBox.Text, out float minSizeMB) && minSizeMB > 0)
+            {
+                filteredDict = filteredDict.Where(kvp =>
+                    kvp.Value.Sum(a => a.FullSize) / (1024f * 1024f) > minSizeMB
+                ).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+            }
+            
             BuildAssetBundleTree(filteredDict);
             assetBundleTreeView.EndUpdate();
+        }
+        
+        private void bundleSizeFilterTextBox_TextChanged(object sender, EventArgs e)
+        {
+            // 使用防抖技术：重置Timer，延迟执行筛选
+            bundleSizeFilterTimer.Stop();
+            bundleSizeFilterTimer.Start();
         }
         
         private void BuildAssetBundleTree(Dictionary<string, List<AssetItem>> bundleDict)
