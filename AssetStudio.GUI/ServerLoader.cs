@@ -12,16 +12,9 @@ namespace AssetStudio.GUI
 {
     public class hashCheck
     {
-        public bool isDirty = false;
         public Dictionary<string, string[]> list;
         public Dictionary<string, string[]> key2mark;
         public Dictionary<string, string[]> mark2list;
-        public Dictionary<string, string[]> langkey2mark;
-        public Dictionary<string, string[]> langmark2list;
-        public Dictionary<string, object> collection2mark;
-        public string[] acc;
-        [NonSerialized] public Func<string, string> pathFunc;
-        [NonSerialized] public string name;
         [NonSerialized] public List<string> listKeys;
         [NonSerialized] private object m_lockObj = new object();
 
@@ -37,231 +30,142 @@ namespace AssetStudio.GUI
 
         public string GetVer(string key)
         {
-            if (string.IsNullOrEmpty(key))
-                return "current";
-            string[] strArray = this.list.ContainsKey(key) ? this.list[key] : (string[])null;
-            return strArray != null && strArray.Length >= 1 ? strArray[0] : "current";
-        }
-
-        public long GetCheckSum(string key)
-        {
-            long result = 0;
-            if (string.IsNullOrEmpty(key))
-                return result;
-            string[] strArray;
-            this.list.TryGetValue(key, out strArray);
-            if (strArray == null || strArray.Length < 4)
-                return result;
-            long.TryParse(strArray[3], out result);
-            return result;
-        }
-
-        public string GetCheckSumStr(string key)
-        {
-            string checkSumStr = "0";
-            if (!string.IsNullOrEmpty(key))
+            if (string.IsNullOrEmpty(key)) return "current";
+            var hashL = (list.ContainsKey(key) ? list[key] : null);
+            if (hashL != null && hashL.Length >= 1)
             {
-                string[] strArray;
-                this.list.TryGetValue(key, out strArray);
-                if (strArray != null && strArray.Length >= 4)
-                    checkSumStr = strArray[3];
+                return hashL[0];
             }
-
-            return checkSumStr;
+            return "current";
         }
 
-        public long GetUnityCrc(string key)
-        {
-            long result = 0;
-            if (string.IsNullOrEmpty(key))
-                return result;
-            string[] strArray = this.list.ContainsKey(key) ? this.list[key] : (string[])null;
-            if (strArray == null || strArray.Length < 5)
-                return result;
-            long.TryParse(strArray[4], out result);
-            return result;
-        }
+     // ChooseMark扩展
+     public static hashCheck ChooseMark(hashCheck n, params string[] keys)
+     {
+         var key2mark = n.key2mark;
+         if (key2mark == null)
+             return n;
 
-        public int GetSize(string key)
-        {
-            if (string.IsNullOrEmpty(key))
-                return 0;
-            string[] strArray = this.list.ContainsKey(key) ? this.list[key] : (string[])null;
-            return strArray != null && strArray.Length >= 3 ? int.Parse(strArray[2]) : 0;
-        }
+         if (keys == null || keys.Length <= 1)
+             return ChooseMark(n, keys.Length == 1 ? keys[0] : string.Empty); // 0个或1个参数，跟能跟之前保持一致
 
-        public bool CheckSame(string key, string[] hashR)
-        {
-            if (hashR == null)
-                return false;
-            string[] strArray = (string[])null;
-            if (!this.list.TryGetValue(key, out strArray))
-                return false;
-            if (hashR == strArray)
-                return true;
-            if (strArray.Length != hashR.Length)
-                return false;
-            int length = strArray.Length;
-            for (int index = 0; index < length; ++index)
-            {
-                if (strArray[index] != hashR[index])
-                    return false;
-            }
+         string key = keys[0];
+         if (string.IsNullOrEmpty(key))
+         {
+             key = "allmarks";
+         }
+         HashSet<string> markSet = new HashSet<string>();
+         if (key2mark.TryGetValue(key, out var marks))
+         {
+             markSet.UnionWith(marks);
+         }
 
-            return true;
-        }
+         if (marks == null || marks.Length == 0)
+         {
+             markSet.Add(key);
+         }
 
-        public bool Update(string key, string[] hashR)
-        {
-            lock (this.m_lockObj)
-            {
-                if (string.IsNullOrEmpty(key) || hashR == null)
-                    return false;
-                this.list[key] = hashR;
-                this.isDirty = true;
-                return true;
-            }
-        }
+         for(int i=1; i<keys.Length; i++) // 将剩余的key列表对应的marks添加到markset
+         {
+             if (!string.IsNullOrEmpty(keys[i]))
+             {
+                 if(key2mark.TryGetValue(keys[i], out var marks2))
+                 {
+                     markSet.UnionWith(marks2);
+                 }
 
-        public bool Remove(string abname)
-        {
-            if (string.IsNullOrEmpty(abname))
-                return false;
-            lock (this.m_lockObj)
-            {
-                this.list.Remove(abname);
-                this.isDirty = true;
-                return true;
-            }
-        }
+                 if (marks2 == null || marks2.Length == 0)
+                 {
+                     markSet.Add(keys[i]); // 添加默认的key
+                 }
+             }
+         }
 
-        public string ToJson()
-        {
-            lock (this.m_lockObj)
-                return JsonConvert.SerializeObject((object)this);
-        }
+         var mark2eclude = new HashSet<string>();
+         foreach (var k in key2mark.Keys)
+         {
+             mark2eclude.UnionWith(key2mark[k]);
+         }
+         mark2eclude.ExceptWith(markSet);
 
-        public List<string> GetListKeys()
-        {
-            if (this.listKeys == null)
-                this.listKeys = new List<string>();
-            this.listKeys.Clear();
-            this.listKeys.AddRange((IEnumerable<string>)this.list.Keys);
-            return this.listKeys;
-        }
+         var dic = n.list;
+         var mark2list = n.mark2list;
+         foreach (var k in mark2eclude)
+         {
+             if (mark2list.TryGetValue(k, out var abs))
+             {
+                 foreach (var ab in abs)
+                 {
+                     dic.Remove(ab);
+                     //"".PrintEditor("remove ab",ab);
+                 }
+             }
+         }
 
-        public string[] GetListKeyContent(string key)
-        {
-            string[] strArray;
-            return string.IsNullOrEmpty(key) || !this.list.TryGetValue(key, out strArray) ? (string[])null : strArray;
-        }
+         return n;
+     }
 
-        public static hashCheck ChooseMark(hashCheck n, params string[] keys)
-        {
-            Dictionary<string, string[]> key2mark = n.key2mark;
-            if (key2mark == null)
-                return n;
-            if (keys == null || keys.Length <= 1)
-                return hashCheck.ChooseMark(n, keys.Length == 1 ? keys[0] : string.Empty);
-            string key1 = keys[0];
-            if (string.IsNullOrEmpty(key1))
-                key1 = "allmarks";
-            string key3 = "";
-            HashSet<string> other1 = new HashSet<string>();
-            string[] other2;
-            if (key2mark.TryGetValue(key1, out other2))
-                other1.UnionWith((IEnumerable<string>)other2);
-            if (other2 == null || other2.Length == 0)
-                other1.Add(key1);
-            if (!string.IsNullOrEmpty(key3))
-            {
-                string[] other3;
-                if (key2mark.TryGetValue(key3, out other3))
-                    other1.UnionWith((IEnumerable<string>)other3);
-                if (other3 == null || other3.Length == 0)
-                    other1.Add(key3);
-            }
+     public static hashCheck ChooseMark(hashCheck n,string key)
+     {
+         if (string.IsNullOrEmpty(key)) {
+             key = "allmarks";
+         }
+         HashSet<string> markSet = new HashSet<string>();
+         var key2mark = n.key2mark;
+         var mark2list = n.mark2list;
+         if (key2mark == null) return n;
+         
 
-            for (int index = 1; index < keys.Length; ++index)
-            {
-                if (!string.IsNullOrEmpty(keys[index]))
-                {
-                    string[] other4;
-                    if (key2mark.TryGetValue(keys[index], out other4))
-                        other1.UnionWith((IEnumerable<string>)other4);
-                    if (other4 == null || other4.Length == 0)
-                        other1.Add(keys[index]);
-                }
-            }
+         if (key2mark.TryGetValue(key, out var marks))
+         {
+             markSet.UnionWith(marks);
+         }
+         if(marks == null || marks.Length==0)
+         {
+             markSet.Add(key);
+         }
+         var mark2eclude = new HashSet<string>();
+         foreach (var k in key2mark.Keys)
+         {
+             mark2eclude.UnionWith(key2mark[k]);  
+         }
+         mark2eclude.ExceptWith(markSet);
 
-            HashSet<string> stringSet = new HashSet<string>();
-            foreach (string key5 in key2mark.Keys)
-                stringSet.UnionWith((IEnumerable<string>)key2mark[key5]);
-            stringSet.ExceptWith((IEnumerable<string>)other1);
-            Dictionary<string, string[]> list = n.list;
-            Dictionary<string, string[]> mark2list = n.mark2list;
-            foreach (string key6 in stringSet)
-            {
-                string[] strArray;
-                if (mark2list.TryGetValue(key6, out strArray))
-                {
-                    foreach (string key7 in strArray)
-                        list.Remove(key7);
-                }
-            }
+         var dic = n.list;
+         
 
-            return n;
-        }
+         foreach (var k in mark2eclude)
+         {
+             if(mark2list.TryGetValue(k,out var abs))
+             {
+                 foreach (var ab in abs)
+                 {
+                     dic.Remove(ab);
+                     //"".PrintEditor("remove ab",ab);
+                 }
+             }
+         }
 
-        public static hashCheck ChooseMark(hashCheck n, string key)
-        {
-            if (string.IsNullOrEmpty(key))
-                key = "allmarks";
-            HashSet<string> other1 = new HashSet<string>();
-            Dictionary<string, string[]> key2mark = n.key2mark;
-            Dictionary<string, string[]> mark2list = n.mark2list;
-            if (key2mark == null)
-                return n;
-            string[] other2;
-            if (key2mark.TryGetValue(key, out other2))
-                other1.UnionWith((IEnumerable<string>)other2);
-            if (other2 == null || other2.Length == 0)
-                other1.Add(key);
-            HashSet<string> stringSet = new HashSet<string>();
-            foreach (string key2 in key2mark.Keys)
-                stringSet.UnionWith((IEnumerable<string>)key2mark[key2]);
-            stringSet.ExceptWith((IEnumerable<string>)other1);
-            Dictionary<string, string[]> list = n.list;
-            foreach (string key3 in stringSet)
-            {
-                string[] strArray;
-                if (mark2list.TryGetValue(key3, out strArray))
-                {
-                    foreach (string key4 in strArray)
-                        list.Remove(key4);
-                }
-            }
-
-            return n;
-        }
-
-        public static hashCheck Parse(string s, string res_key = "", string ch_res_key = "")
-        {
-            if (string.IsNullOrEmpty(s))
-                return (hashCheck)null;
-            hashCheck n = (hashCheck)null;
-            try
-            {
-                n = JsonConvert.DeserializeObject<hashCheck>(s);
-                hashCheck.ChooseMark(n, res_key, ch_res_key);
-            }
-            catch (Exception ex)
-            {
-                Logger.Error($"Failed to parse hash check: {ex.Message}|{ex.StackTrace}");
-            }
-
-            return n;
-        }
+         return n;
+     }
+     public static hashCheck Parse(string s,string res_key = "", string ch_res_key = "")
+     {
+         if (string.IsNullOrEmpty(s)) return null;
+         hashCheck n = null;
+         try
+         {
+             n = Newtonsoft.Json.JsonConvert.DeserializeObject<hashCheck>(s);
+                 ChooseMark(n, res_key, ch_res_key);
+             //if(!string.IsNullOrEmpty(res_key))
+             //{
+             //}
+         }
+         catch (System.Exception e)
+         {
+             Logger.Info($"{e.ToString()}|{e.StackTrace}");
+         }
+         return n;
+     }
     }
 
     class ParallelInfo
@@ -467,10 +371,46 @@ namespace AssetStudio.GUI
         
         static public string GetResUrl(string assetbundleName, hashCheck hashCheck, string resUrl)
         {
-            if (hashCheck?.list.ContainsKey(assetbundleName) == false)
+            if (string.IsNullOrEmpty(hashCheck[assetbundleName]))
             {
+                Logger.Error($"not find assetbundleName: {assetbundleName}");
                 return null;
             }
+
+            var h5Folder = "";
+            if (resUrl.Contains("MiniGame"))
+            {
+                h5Folder = "MiniGame";
+            }else if (resUrl.Contains("WebGL"))
+            {
+                h5Folder = "WebGL";
+            }
+            
+            if (!string.IsNullOrEmpty(h5Folder))
+            {
+                var hash = hashCheck[assetbundleName];
+                var fileName = Path.GetFileNameWithoutExtension(assetbundleName);
+                var extension = Path.GetExtension(assetbundleName);
+                var directory = Path.GetDirectoryName(assetbundleName);
+
+                string newAbName;
+                if (!string.IsNullOrEmpty(extension))
+                {
+                    newAbName = $"{fileName}_{hash}{extension}";
+                }
+                else
+                {
+                    newAbName = $"{fileName}_{hash}";
+                }
+
+                if (!string.IsNullOrEmpty(directory))
+                {
+                    newAbName = Path.Combine(directory, newAbName).Replace("\\", "/");
+                }
+
+                return Path.Combine(resUrl.Replace("resource",$"StreamingAssets/AssetBundles/{h5Folder}"), newAbName).Replace("\\", "/");
+            }
+
             return resUrl + "/" + hashCheck.GetVer(assetbundleName) + "/" + assetbundleName;
         }
         
@@ -529,7 +469,7 @@ namespace AssetStudio.GUI
                         }
                         catch (Exception ex)
                         {
-                            Logger.Error($"Failed to download {abName}: {ex.Message}");
+                            Logger.Error($"Failed to download { GetResUrl(abName, resourcesHashCheck, baseServerResourcePath)}: {ex.Message}");
                         }
                         finally
                         {

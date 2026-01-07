@@ -3640,6 +3640,10 @@ namespace AssetStudio.GUI
                     // 选项四：启用Mipmaps的纹理检测
                     DetectMipmapEnabledTextures();
                     break;
+                case 4:
+                    // 选项五：图片规范压缩失效纹理检测
+                    DetectInvalidCompressionTextures();
+                    break;
             }
         }
 
@@ -3706,8 +3710,8 @@ namespace AssetStudio.GUI
             {
                 if (asset.Type == ClassIDType.Texture2D && asset.Asset is Texture2D texture2D)
                 {
-                    // 修改条件：只要宽度或高度大于2048就筛选出来
-                    if (texture2D.m_Width > 2048 || texture2D.m_Height > 2048)
+                    // 修改条件：只要宽度或高度大于等于2048就筛选出来
+                    if (texture2D.m_Width >= 2048 || texture2D.m_Height >= 2048)
                     {
                         // 创建新AssetItem并手动设置FullSize
                         var item = new AssetItem(asset.Asset);
@@ -3735,7 +3739,7 @@ namespace AssetStudio.GUI
             uncompressedTexturesListView.VirtualListSize = uncompressedTextures.Count;
             uncompressedTextures.Sort((a, b) => b.FullSize.CompareTo(a.FullSize));
 
-            uncompressedTotalLabel.Text = $"大尺寸纹理(>2048)总数: {uncompressedTextures.Count}  总大小: {totalSize / (1024f * 1024f):F2} MB";
+            uncompressedTotalLabel.Text = $"大尺寸纹理(>=2048)总数: {uncompressedTextures.Count}  总大小: {totalSize / (1024f * 1024f):F2} MB";
             
             // 记录当前排序状态：Size列降序
             sortColumn = 4;
@@ -3826,6 +3830,62 @@ namespace AssetStudio.GUI
             // 记录当前排序状态：Size列降序
             sortColumn = 4;
             reverseSort = true;
+        }
+        
+        private void DetectInvalidCompressionTextures()
+        {
+            long totalSize = 0;
+            foreach (var asset in exportableAssets)
+            {
+                if (asset.Type == ClassIDType.Texture2D && asset.Asset is Texture2D texture2D)
+                {
+                    // 检测条件：
+                    // 1. 格式为RGBA32
+                    // 2. 启用了Mipmaps (m_MipMap为true或m_MipCount>1)
+                    // 3. 分辨率非2的幂次方
+                    bool hasMipmaps = texture2D.m_MipMap || texture2D.m_MipCount > 1;
+                    bool isRGBA32 = texture2D.m_TextureFormat == TextureFormat.RGBA32;
+                    bool isPowerOfTwo = IsPowerOfTwo(texture2D.m_Width) && IsPowerOfTwo(texture2D.m_Height);
+                    
+                    if (isRGBA32 && hasMipmaps && !isPowerOfTwo)
+                    {
+                        // 创建新AssetItem并手动设置FullSize
+                        var item = new AssetItem(asset.Asset);
+                        item.Text = asset.Text;
+                        item.Container = asset.Container;
+                        item.FullSize = asset.FullSize;
+                        item.SubItems.AddRange(new string[] {
+                            texture2D.m_TextureFormat.ToString(),
+                            texture2D.m_Width.ToString(),
+                            texture2D.m_Height.ToString(),
+                            $"{asset.FullSize / 1024f:F2} KB",
+                            asset.Container
+                        });
+                        item.SubItemValues.AddRange(new long[] {
+                            texture2D.m_Width,
+                            texture2D.m_Height
+                        });
+                        
+                        uncompressedTextures.Add(item);
+                        totalSize += asset.FullSize;
+                    }
+                }
+            }
+            
+            uncompressedTexturesListView.VirtualListSize = uncompressedTextures.Count;
+            uncompressedTextures.Sort((a, b) => b.FullSize.CompareTo(a.FullSize));
+
+            uncompressedTotalLabel.Text = $"图片规范压缩失效纹理总数: {uncompressedTextures.Count}  总大小: {totalSize / (1024f * 1024f):F2} MB";
+            
+            // 记录当前排序状态：Size列降序
+            sortColumn = 4;
+            reverseSort = true;
+        }
+        
+        // 判断一个数是否为2的幂次方
+        private bool IsPowerOfTwo(int n)
+        {
+            return n > 0 && (n & (n - 1)) == 0;
         }
         
         private void duplicateDetectionComboBox_SelectedIndexChanged(object sender, EventArgs e)

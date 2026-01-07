@@ -1203,7 +1203,7 @@ namespace AssetStudio.GUI
             tabPage7.Text = "纹理专项检测";
             tabPage7.UseVisualStyleBackColor = true;
             
-            textureDetectionComboBox.Items.AddRange(new object[] { "未压缩纹理", "2048x4096纹理", "启用读写纹理", "启用Mipmaps纹理" });
+            textureDetectionComboBox.Items.AddRange(new object[] { "未压缩纹理", "2048纹理", "启用读写纹理", "启用Mipmaps纹理", "图片规范压缩失效纹理" });
             textureDetectionComboBox.SelectedIndex = 0;
             textureDetectionComboBox.SelectedIndexChanged += new EventHandler(textureDetectionComboBox_SelectedIndexChanged);
             
