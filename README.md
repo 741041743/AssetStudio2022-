@@ -15,6 +15,10 @@
 ## 增加纹理纹理专项检测
 <img width="1280" height="720" alt="image" src="https://github.com/user-attachments/assets/2c51192c-86a9-49d8-83b8-5b5a9eb097ab" />
 
+## 增加单体AB检测
+![image](https://github.com/user-attachments/assets/21910545-2088-4e09-9fb8-94813b440f27)
+
+
 
 ## exe目录 ： AssetStudio/AssetStudioGUI/bin/Debug/
 # NOTICE: Project has been temporarily suspended till further notice.
