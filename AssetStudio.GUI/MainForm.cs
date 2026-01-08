@@ -1224,36 +1224,8 @@ namespace AssetStudio.GUI
                 }
                 if (enablePreview.Checked)
                 {
-                    var mode = duplicateDetectionComboBox.SelectedIndex;
-                    if (mode == 1 && lastSelectedItem.DuplicateAssets.Count > 0)
-                    {
-                        // 模式2：按PathID分组显示重复资源的详细信息
-                        var detailText = "相同内容的资源列表:\n\n";
-                        
-                        // 按PathID分组
-                        var groupedByPathID = lastSelectedItem.DuplicateAssets
-                            .GroupBy(x => x.PathID)
-                            .OrderBy(g => g.Key);
-                        
-                        foreach (var pathIDGroup in groupedByPathID)
-                        {
-                            detailText += $"PathID: {pathIDGroup.Key}\n";
-                            
-                            // 列出该PathID下的所有资源（保持Name和Container的对应关系）
-                            foreach (var asset in pathIDGroup)
-                            {
-                                detailText += $"  Name: {asset.Name}  |  Container: {asset.Container}\n";
-                            }
-                            
-                            detailText += "----------------------------------------\n";
-                        }
-                        PreviewText(detailText.Replace("\n", "\r\n").Replace("\0", ""));
-                    }
-                    else
-                    {
-                        // 模式1：显示原有的 AssetBundle 信息
-                        PreviewText(("包含此资源的AssetBundle:\n" + lastSelectedItem.AllContainer).Replace("\n", "\r\n").Replace("\0", ""));
-                    }
+                    // 显示包含此资源的 AssetBundle 信息
+                    PreviewText(("包含此资源的AssetBundle:\n" + lastSelectedItem.AllContainer).Replace("\n", "\r\n").Replace("\0", ""));
                     
                     if (displayInfo.Checked && lastSelectedItem.InfoText != null)
                     {
@@ -3890,22 +3862,6 @@ namespace AssetStudio.GUI
         
         private void duplicateDetectionComboBox_SelectedIndexChanged(object sender, EventArgs e)
         {
-            var mode = duplicateDetectionComboBox.SelectedIndex;
-            
-            // 控制 Name 和 PathID 列的显示
-            if (mode == 1)
-            {
-                // 模式2：隐藏 Name 和 PathID 列
-                redundanteRessourcenListView.Columns[0].Width = 0; // Name
-                redundanteRessourcenListView.Columns[1].Width = 0; // PathID
-            }
-            else
-            {
-                // 模式1：显示 Name 和 PathID 列
-                redundanteRessourcenListView.Columns[0].Width = 120; // Name
-                redundanteRessourcenListView.Columns[1].Width = 120; // PathID
-            }
-            
             // 当下拉框选择改变时，重新构建资产数据
             if (exportableAssets.Count > 0)
             {

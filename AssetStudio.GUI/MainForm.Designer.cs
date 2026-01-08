@@ -1108,7 +1108,7 @@ namespace AssetStudio.GUI
             
             redundantSearch.KeyPress += redundantSearch_KeyPress;
             
-            duplicateDetectionComboBox.Items.AddRange(new object[] { "重复打进ab资源检测", "相同文件内容资源检测" });
+            duplicateDetectionComboBox.Items.AddRange(new object[] { "重复打进ab资源检测" });
             duplicateDetectionComboBox.SelectedIndex = 0;
             
             tabPage6.Location = new System.Drawing.Point(4, 22);

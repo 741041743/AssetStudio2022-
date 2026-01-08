@@ -252,7 +252,7 @@ namespace AssetStudio.GUI
             }
         }
 
-        public static int DuplicateDetectionMode = 0; // 0: Name+FullSize+PathID+Type, 1: FullSize+Type+Content
+        public static int DuplicateDetectionMode = 0; // 0: Name+FullSize+PathID+Type
         
         public static (string, List<TreeNode>) BuildAssetData()
         {
@@ -1031,16 +1031,8 @@ namespace AssetStudio.GUI
         
         private static void BuildRedundantAssetsInternal(List<AssetItem> redundanzAssets2, int mode)
         {
-            if (mode == 0)
-            {
-                // 模式一: Name+FullSize+PathID+Type
-                BuildRedundantAssetsByNamePathIDSizeType(redundanzAssets2);
-            }
-            else if (mode == 1)
-            {
-                // 模式二: FullSize+Type+文件内容
-                BuildRedundantAssetsBySizeTypeContent(redundanzAssets2);
-            }
+            // 模式一: Name+FullSize+PathID+Type
+            BuildRedundantAssetsByNamePathIDSizeType(redundanzAssets2);
         }
         
         private static void BuildRedundantAssetsByNamePathIDSizeType(List<AssetItem> redundanzAssets2)
@@ -1094,150 +1086,5 @@ namespace AssetStudio.GUI
             }
         }
         
-        private static void BuildRedundantAssetsBySizeTypeContent(List<AssetItem> redundanzAssets2)
-        {
-            var groups = new Dictionary<string, List<AssetItem>>();
-            bool isRedundanz = false;
-            
-            // 第一步：按 FullSize+Type 分组
-            foreach (var asset in redundanzAssets2)
-            {
-                var key = $"{asset.FullSize}_{asset.Type}";
-                if (!groups.ContainsKey(key))
-                {
-                    groups[key] = new List<AssetItem>();
-                }
-                groups[key].Add(asset);
-            }
-            
-            // 第二步：对每个组内的资源按文件内容比较
-            foreach (var group in groups.Values)
-            {
-                if (group.Count < 2)
-                {
-                    // 只有一个资源，不可能重复
-                    continue;
-                }
-                
-                // 按文件内容比较，并收集所有相同内容的资源
-                var contentGroups = new Dictionary<string, List<AssetItem>>();
-                foreach (var asset in group)
-                {
-                    var contentHash = GetAssetContentHash(asset.Asset);
-                    
-                    if (!contentGroups.ContainsKey(contentHash))
-                    {
-                        contentGroups[contentHash] = new List<AssetItem>();
-                    }
-                    contentGroups[contentHash].Add(asset);
-                }
-                
-                // 第三步：检查每个内容组，只有当PathID不全相同时才添加
-                foreach (var contentGroup in contentGroups.Values)
-                {
-                    if (contentGroup.Count < 2)
-                    {
-                        // 只有一个资源，不显示
-                        continue;
-                    }
-                    
-                    // 检查是否所有PathID都相同
-                    var firstPathID = contentGroup[0].m_PathID;
-                    var hasDistinctPathID = contentGroup.Any(x => x.m_PathID != firstPathID);
-                    
-                    if (hasDistinctPathID)
-                    {
-                        // 有不同的PathID，创建一个代表项
-                        var representativeItem = contentGroup[0];
-                        representativeItem.Gesamtzahl = contentGroup.Count;
-                        representativeItem.AllContainer = string.Join("\n", contentGroup.Select(x => x.Container));
-                        
-                        // 添加所有资源的详细信息（包括PathID相同和不同的）
-                        representativeItem.DuplicateAssets.Clear();
-                        foreach (var asset in contentGroup)
-                        {
-                            representativeItem.DuplicateAssets.Add(new DuplicateAssetInfo(asset.Text, asset.m_PathID, asset.Container));
-                        }
-                        
-                        representativeItem.SetSubItems2();
-                        redundanzAssets.Add(representativeItem);
-                        isRedundanz = true;
-                    }
-                    // 如果所有PathID都相同，不添加到结果中
-                }
-            }
-            
-            // 排序
-            if (isRedundanz)
-            {
-                redundanzAssets.Sort((a, b) =>
-                {
-                    var asf = a.FullSize * (a.Gesamtzahl - 1);
-                    var bsf = b.FullSize * (b.Gesamtzahl - 1);
-                    return bsf.CompareTo(asf);
-                });
-            }
-            else
-            {
-                redundanzAssets.Sort((a, b) =>
-                {
-                    var asf = a.FullSize;
-                    var bsf = b.FullSize;
-                    return bsf.CompareTo(asf);
-                });
-            }
-        }
-        
-        private static string GetAssetContentHash(Object asset)
-        {
-            try
-            {
-                byte[] bytes;
-                byte[] objectBytes = asset.GetRawData();
-                byte[] resourceData = null;
-                
-                // 特殊处理包含外部资源数据的资源类型
-                if (asset is Texture2D texture2D)
-                {
-                    // 获取图像数据
-                    resourceData = texture2D.image_data?.GetData();
-                }
-                else if (asset is AudioClip audioClip)
-                {
-                    // 获取音频数据
-                    resourceData = audioClip.m_AudioData?.GetData();
-                }
-                else if (asset is VideoClip videoClip)
-                {
-                    // 获取视频数据
-                    resourceData = videoClip.m_VideoData?.GetData();
-                }
-                
-                // 合并序列化数据和资源数据
-                if (resourceData != null && resourceData.Length > 0)
-                {
-                    bytes = new byte[objectBytes.Length + resourceData.Length];
-                    Array.Copy(objectBytes, 0, bytes, 0, objectBytes.Length);
-                    Array.Copy(resourceData, 0, bytes, objectBytes.Length, resourceData.Length);
-                }
-                else
-                {
-                    bytes = objectBytes;
-                }
-                
-                // 计算 SHA256 哈希
-                using (var sha256 = System.Security.Cryptography.SHA256.Create())
-                {
-                    var hash = sha256.ComputeHash(bytes);
-                    return BitConverter.ToString(hash).Replace("-", "");
-                }
-            }
-            catch (Exception ex)
-            {
-                // 如果读取失败，记录错误并返回一个基于对象属性的唯一标识
-                Logger.Verbose($"Failed to get content hash for asset {asset.m_PathID}: {ex.Message}");
-                return $"{asset.m_PathID}_{asset.byteSize}_{asset.type}";
-            }
-        }
     }
 }
