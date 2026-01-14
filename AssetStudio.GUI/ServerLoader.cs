@@ -411,7 +411,8 @@ namespace AssetStudio.GUI
                 return Path.Combine(resUrl.Replace("resource",$"StreamingAssets/AssetBundles/{h5Folder}"), newAbName).Replace("\\", "/");
             }
 
-            return resUrl + "/" + hashCheck.GetVer(assetbundleName) + "/" + assetbundleName;
+            var uri = new Uri(resUrl);
+            return new Uri(uri, $"{hashCheck.GetVer(assetbundleName)}/{assetbundleName}").ToString();
         }
         
         static async Task DownloadResourcesParallel<T>(Dictionary<string, T> resourcesSet, hashCheck resourcesHashCheck, int version, string versionFolder, string tempResourceFolder, string baseServerResourcePath, IProgress<int> progress = null)
@@ -539,7 +540,7 @@ namespace AssetStudio.GUI
             }
             catch (Exception ex)
             {
-                Logger.Error($"Failed to download file {Path.GetFileName(savePath)}: {ex.Message}");
+                Logger.Error($"Failed to download file {savePath}: {ex.Message}");
                 throw;
             }
         }
