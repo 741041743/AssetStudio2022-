@@ -11,10 +11,12 @@ namespace AssetStudio.GUI
         public string Version { get; private set; }
         public bool UseLocalCache { get; private set; }
         public string LocalCachePath { get; private set; }
+        public string ReplaceBaseUrl { get; private set; }
 
         private ComboBox localCacheComboBox;
         private TextBox urlTextBox;
         private TextBox versionTextBox;
+        private TextBox replaceBaseUrlTextBox;
         private Label resultLabel;
         private Button confirmButton;
         private Button cancelButton;
@@ -29,7 +31,7 @@ namespace AssetStudio.GUI
         private void InitializeComponent()
         {
             this.Text = "Load Server";
-            this.Size = new System.Drawing.Size(500, 310);
+            this.Size = new System.Drawing.Size(500, 370);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -76,9 +78,23 @@ namespace AssetStudio.GUI
             versionTextBox.Size = new System.Drawing.Size(440, 23);
             this.Controls.Add(versionTextBox);
 
+            // Replace Base URL Label
+            var replaceBaseUrlLabel = new Label();
+            replaceBaseUrlLabel.Text = "替换资源URL (可选):";
+            replaceBaseUrlLabel.Location = new System.Drawing.Point(20, 200);
+            replaceBaseUrlLabel.AutoSize = true;
+            this.Controls.Add(replaceBaseUrlLabel);
+
+            // Replace Base URL TextBox
+            replaceBaseUrlTextBox = new TextBox();
+            replaceBaseUrlTextBox.Location = new System.Drawing.Point(20, 225);
+            replaceBaseUrlTextBox.Size = new System.Drawing.Size(440, 23);
+            replaceBaseUrlTextBox.PlaceholderText = "例如: http://192.168.20.209:8001/xMan_overseas_iOS_Release/iOS";
+            this.Controls.Add(replaceBaseUrlTextBox);
+
             // Result Label
             resultLabel = new Label();
-            resultLabel.Location = new System.Drawing.Point(20, 200);
+            resultLabel.Location = new System.Drawing.Point(20, 260);
             resultLabel.Size = new System.Drawing.Size(440, 23);
             resultLabel.Text = "";
             resultLabel.ForeColor = System.Drawing.Color.Blue;
@@ -87,7 +103,7 @@ namespace AssetStudio.GUI
             // Confirm Button
             confirmButton = new Button();
             confirmButton.Text = "确认";
-            confirmButton.Location = new System.Drawing.Point(280, 235);
+            confirmButton.Location = new System.Drawing.Point(280, 295);
             confirmButton.Size = new System.Drawing.Size(85, 30);
             confirmButton.Click += ConfirmButton_Click;
             this.Controls.Add(confirmButton);
@@ -95,7 +111,7 @@ namespace AssetStudio.GUI
             // Cancel Button
             cancelButton = new Button();
             cancelButton.Text = "取消";
-            cancelButton.Location = new System.Drawing.Point(375, 235);
+            cancelButton.Location = new System.Drawing.Point(375, 295);
             cancelButton.Size = new System.Drawing.Size(85, 30);
             cancelButton.DialogResult = DialogResult.Cancel;
             this.Controls.Add(cancelButton);
@@ -141,16 +157,20 @@ namespace AssetStudio.GUI
                 // 选择"从服务器下载"，启用输入框
                 urlTextBox.Enabled = true;
                 versionTextBox.Enabled = true;
+                replaceBaseUrlTextBox.Enabled = true;
                 urlTextBox.Text = Properties.Settings.Default.serverUrl ?? "";
                 versionTextBox.Text = Properties.Settings.Default.serverVersion ?? "";
+                replaceBaseUrlTextBox.Text = Properties.Settings.Default.replaceBaseUrl ?? "";
             }
             else
             {
                 // 选择本地缓存版本，禁用输入框
                 urlTextBox.Enabled = false;
                 versionTextBox.Enabled = false;
+                replaceBaseUrlTextBox.Enabled = false;
                 urlTextBox.Text = "使用本地缓存";
                 versionTextBox.Text = localCacheComboBox.SelectedItem.ToString();
+                replaceBaseUrlTextBox.Text = "";
             }
         }
 
@@ -161,6 +181,7 @@ namespace AssetStudio.GUI
             {
                 urlTextBox.Text = Properties.Settings.Default.serverUrl ?? "";
                 versionTextBox.Text = Properties.Settings.Default.serverVersion ?? "";
+                replaceBaseUrlTextBox.Text = Properties.Settings.Default.replaceBaseUrl ?? "";
             }
         }
 
@@ -169,6 +190,7 @@ namespace AssetStudio.GUI
             // 保存到设置中
             Properties.Settings.Default.serverUrl = ServerUrl;
             Properties.Settings.Default.serverVersion = Version;
+            Properties.Settings.Default.replaceBaseUrl = ReplaceBaseUrl;
             Properties.Settings.Default.Save();
         }
 
@@ -179,6 +201,7 @@ namespace AssetStudio.GUI
                 // 从服务器下载模式
                 ServerUrl = urlTextBox.Text.Trim();
                 Version = versionTextBox.Text.Trim();
+                ReplaceBaseUrl = replaceBaseUrlTextBox.Text.Trim();
                 UseLocalCache = false;
 
                 if (string.IsNullOrEmpty(ServerUrl))
@@ -205,6 +228,7 @@ namespace AssetStudio.GUI
             {
                 // 使用本地缓存模式
                 UseLocalCache = true;
+                ReplaceBaseUrl = "";
                 var selectedVersion = localCacheComboBox.SelectedItem.ToString();
                 Version = selectedVersion;
                 

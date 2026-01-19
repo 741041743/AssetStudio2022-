@@ -372,12 +372,13 @@ namespace AssetStudio.GUI
                     // 从服务器下载模式
                     var url = loadServerForm.ServerUrl;
                     var version = loadServerForm.Version;
+                    var replaceBaseUrl = loadServerForm.ReplaceBaseUrl;
                     
                     StatusStripUpdate($"正在从服务器加载: {url} (版本: {version})");
                     
                     try
                     {
-                        var cachePath = await ServerLoader.LoadFromServer(url, version, Progress.Default);
+                        var cachePath = await ServerLoader.LoadFromServer(url, version, Progress.Default, replaceBaseUrl);
                         
                         if (!string.IsNullOrEmpty(cachePath))
                         {

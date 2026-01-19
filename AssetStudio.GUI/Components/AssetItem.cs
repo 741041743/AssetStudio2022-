@@ -17,6 +17,7 @@ namespace AssetStudio.GUI
         public int Gesamtzahl;
         public GameObjectTreeNode TreeNode;
         public string AllContainer = string.Empty;
+        public string FilePath = string.Empty;
         public List<long> SubItemValues = new List<long>();
 
         public AssetItem(Object asset)

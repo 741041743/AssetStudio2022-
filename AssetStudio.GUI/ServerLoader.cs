@@ -175,6 +175,8 @@ namespace AssetStudio.GUI
         public string displayTxt = string.Empty;
         public int totalCount = 1;
         public bool cancel = false;
+        public int failedCount = 0;
+        public List<string> failedFiles = new List<string>();
     }
 
     /// <summary>
@@ -189,8 +191,9 @@ namespace AssetStudio.GUI
         /// <param name="url">远程服务器地址</param>
         /// <param name="inputVersion">用户输入的版本号，0表示使用服务器最新版本</param>
         /// <param name="progress">进度报告</param>
+        /// <param name="replaceBaseUrl">替换资源URL的基础地址（可选）</param>
         /// <returns>返回下载后的缓存路径，失败返回null</returns>
-        public static async Task<string> LoadFromServer(string url, string inputVersion, IProgress<int> progress = null)
+        public static async Task<string> LoadFromServer(string url, string inputVersion, IProgress<int> progress = null, string replaceBaseUrl = null)
         {
             try
             {
@@ -295,6 +298,19 @@ namespace AssetStudio.GUI
                     Logger.Info("Starting to download resource list file...");
                     var filesListUrl = Path.Combine(finalUrl,fileName);
                     var filesListPath = Path.Combine(resourcesFolder, "files.txt");
+                    
+                    if (!string.IsNullOrEmpty(replaceBaseUrl))
+                    {
+                        // 查找"resource"关键字的位置
+                        var resourceIndex = filesListUrl.IndexOf("/resource/", StringComparison.OrdinalIgnoreCase);
+                        if (resourceIndex > 0)
+                        {
+                            // 提取resource及之后的部分
+                            var resourcePart = filesListUrl.Substring(resourceIndex);
+                            // 组合替换的基础URL和resource部分
+                            filesListUrl = replaceBaseUrl.TrimEnd('/') + resourcePart;
+                        }
+                    }
                     await DownloadFileAsync(filesListUrl, filesListPath);
 
                     // 读取文件列表
@@ -312,26 +328,33 @@ namespace AssetStudio.GUI
                     // 获取基础资源URL（去掉$file_ver占位符）
                     var baseResourceUrl = resourceUrl.TrimEnd('/').Replace("$file_ver", "");
                     
-                    await DownloadResourcesParallel(newHashCheck.list, newHashCheck, int.Parse(actualVersion), $"{actualVersion}_full", serverCachePath, baseResourceUrl, progress);
+                    var downloadSuccess = await DownloadResourcesParallel(newHashCheck.list, newHashCheck, int.Parse(actualVersion), $"{actualVersion}_full", serverCachePath, baseResourceUrl, progress, replaceBaseUrl);
 
-                    Logger.Info("Resource download completed");
-                    
-                    // 创建下载完成标记文件
-                    try
+                    if (downloadSuccess)
                     {
-                        var markerData = new JObject
+                        Logger.Info("Resource download completed successfully");
+                        
+                        // 创建下载完成标记文件
+                        try
                         {
-                            ["url"] = url,
-                            ["version"] = actualVersion,
-                            ["download_time"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                            ["file_count"] = newHashCheck.list.Count
-                        };
-                        File.WriteAllText(completeMarkerPath, markerData.ToString());
-                        Logger.Info("Download completion marker file created");
+                            var markerData = new JObject
+                            {
+                                ["url"] = url,
+                                ["version"] = actualVersion,
+                                ["download_time"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                                ["file_count"] = newHashCheck.list.Count
+                            };
+                            File.WriteAllText(completeMarkerPath, markerData.ToString());
+                            Logger.Info("Download completion marker file created");
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Warning($"Failed to create marker file: {ex.Message}");
+                        }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        Logger.Warning($"Failed to create marker file: {ex.Message}");
+                        Logger.Error("Resource download completed with errors. Download completion marker will not be created.");
                     }
                     
                     return resourcesFolder;
@@ -369,7 +392,7 @@ namespace AssetStudio.GUI
             return fileVersion;
         }
         
-        static public string GetResUrl(string assetbundleName, hashCheck hashCheck, string resUrl)
+        static public string GetResUrl(string assetbundleName, hashCheck hashCheck, string resUrl, string replaceBaseUrl = null)
         {
             if (string.IsNullOrEmpty(hashCheck[assetbundleName]))
             {
@@ -412,10 +435,26 @@ namespace AssetStudio.GUI
             }
 
             var uri = new Uri(resUrl);
-            return new Uri(uri, $"{hashCheck.GetVer(assetbundleName)}/{assetbundleName}").ToString();
+            var finalUrl = new Uri(uri, $"{hashCheck.GetVer(assetbundleName)}/{assetbundleName}").ToString();
+            
+            // 如果提供了replaceBaseUrl，则替换resource前面的部分
+            if (!string.IsNullOrEmpty(replaceBaseUrl))
+            {
+                // 查找"resource"关键字的位置
+                var resourceIndex = finalUrl.IndexOf("/resource/", StringComparison.OrdinalIgnoreCase);
+                if (resourceIndex > 0)
+                {
+                    // 提取resource及之后的部分
+                    var resourcePart = finalUrl.Substring(resourceIndex);
+                    // 组合替换的基础URL和resource部分
+                    finalUrl = replaceBaseUrl.TrimEnd('/') + resourcePart;
+                }
+            }
+            
+            return finalUrl;
         }
         
-        static async Task DownloadResourcesParallel<T>(Dictionary<string, T> resourcesSet, hashCheck resourcesHashCheck, int version, string versionFolder, string tempResourceFolder, string baseServerResourcePath, IProgress<int> progress = null)
+        static async Task<bool> DownloadResourcesParallel<T>(Dictionary<string, T> resourcesSet, hashCheck resourcesHashCheck, int version, string versionFolder, string tempResourceFolder, string baseServerResourcePath, IProgress<int> progress = null, string replaceBaseUrl = null)
         {
             var parallelDownloadInfo = new ParallelInfo
             {
@@ -451,7 +490,7 @@ namespace AssetStudio.GUI
                                 return;
                             }
 
-                            var downloadUrl = GetResUrl(abName, resourcesHashCheck, baseServerResourcePath);
+                            var downloadUrl = GetResUrl(abName, resourcesHashCheck, baseServerResourcePath, replaceBaseUrl);
                             if (downloadUrl != null)
                             {
                                 string savePath;
@@ -470,7 +509,12 @@ namespace AssetStudio.GUI
                         }
                         catch (Exception ex)
                         {
-                            Logger.Error($"Failed to download { GetResUrl(abName, resourcesHashCheck, baseServerResourcePath)}: {ex.Message}");
+                            Logger.Error($"Failed to download {GetResUrl(abName, resourcesHashCheck, baseServerResourcePath)}: {ex.Message}");
+                            lock (parallelDownloadInfo)
+                            {
+                                parallelDownloadInfo.failedCount++;
+                                parallelDownloadInfo.failedFiles.Add(abName);
+                            }
                         }
                         finally
                         {
@@ -503,11 +547,23 @@ namespace AssetStudio.GUI
                 
                 stopWatch.Stop();
                 Logger.Info($"Download of version [{version}] resources completed, time elapsed: {stopWatch.ElapsedMilliseconds} ms ({stopWatch.Elapsed.TotalSeconds:F2} seconds)");
+                
+                if (parallelDownloadInfo.failedCount > 0)
+                {
+                    Logger.Error($"Download completed with {parallelDownloadInfo.failedCount} failed files:");
+                    foreach (var failedFile in parallelDownloadInfo.failedFiles)
+                    {
+                        Logger.Error($"  - {failedFile}");
+                    }
+                    return false;
+                }
+                
+                return true;
             }
             catch (Exception e)
             {
                 Logger.Error($"Parallel download failed: {e.Message}");
-                throw;
+                return false;
             }
             finally
             {

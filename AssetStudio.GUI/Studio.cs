@@ -278,6 +278,11 @@ namespace AssetStudio.GUI
                     }
                     var assetItem = new AssetItem(asset);
                     var assetItem2 = new AssetItem(asset);
+                    
+                    // 只保留从第一个"assets/"目录开始的路径（包括assets）
+
+                    assetItem2.FilePath = assetsFile.originalPath;
+                    
                     objectAssetItemDic.Add(asset, assetItem);
                     assetItem.UniqueID = "#" + i;
                     assetItem2.UniqueID = "#" + i;
@@ -402,7 +407,10 @@ namespace AssetStudio.GUI
                         assetItem2.Text = name;
                         assetItem2.Container = hash2.ToString();
                     }
-                    else assetItem2.Text = $"BinFile #{assetItem2.m_PathID}";
+                    else
+                    {
+                        assetItem2.Text = $"BinFile #{assetItem2.m_PathID}";
+                    }
                 }
             }
             if (!SkipContainer)
@@ -1046,18 +1054,26 @@ namespace AssetStudio.GUI
                     if (assetItem3.Type == kvp.Type && assetItem3.m_PathID == kvp.m_PathID && assetItem3.FullSize == kvp.FullSize && assetItem3.Name == kvp.Name)
                     {
                         assetItem3.Gesamtzahl++;
-                        assetItem3.AllContainer += "\n" + kvp.Container;
+                        // 只添加非空、非纯数字且不重复的Container
+                        if (!string.IsNullOrEmpty(kvp.Container) && !IsNumericOnly(kvp.Container))
+                        {
+                            var containers = assetItem3.AllContainer.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+                            if (!containers.Contains(kvp.Container))
+                            {
+                                assetItem3.AllContainer += "\n" + kvp.FilePath;
+                            }
+                        }
                         isRedundanz = true;
                     }
                     else
                     {
-                        kvp.AllContainer = kvp.Container;
+                        kvp.AllContainer = (string.IsNullOrEmpty(kvp.FilePath) || IsNumericOnly(kvp.FilePath)) ? "" : kvp.FilePath;
                         redundanzAssets.Add(kvp);
                     }
                 }
                 else
                 {
-                    kvp.AllContainer = kvp.Container;
+                    kvp.AllContainer = (string.IsNullOrEmpty(kvp.FilePath) || IsNumericOnly(kvp.FilePath)) ? "" : kvp.FilePath;
                     keyValuePairs.Add(Path.Combine(kvp.Name, kvp.m_PathID.ToString(), kvp.FullSize.ToString(), kvp.Type.ToString()), kvp);
                 }
             }
@@ -1084,6 +1100,19 @@ namespace AssetStudio.GUI
                     return bsf.CompareTo(asf);
                 });
             }
+        }
+        
+        private static bool IsNumericOnly(string str)
+        {
+            if (string.IsNullOrEmpty(str))
+                return false;
+            
+            foreach (char c in str)
+            {
+                if (!char.IsDigit(c))
+                    return false;
+            }
+            return true;
         }
         
     }

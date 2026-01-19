@@ -19,6 +19,7 @@ namespace AssetStudio
         public string SpecifyUnityVersion;
         public CancellationTokenSource tokenSource = new CancellationTokenSource();
         public List<SerializedFile> assetsFileList = new List<SerializedFile>();
+        public Dictionary<string,string> assetsFilePathMap = new Dictionary<string,string>();
 
         internal Dictionary<string, int> assetsFileIndexCache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         internal Dictionary<string, BinaryReader> resourceFileReaders = new Dictionary<string, BinaryReader>(StringComparer.OrdinalIgnoreCase);

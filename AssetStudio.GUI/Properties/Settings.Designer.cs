@@ -528,5 +528,17 @@ namespace AssetStudio.GUI.Properties {
                 this["serverVersion"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string replaceBaseUrl {
+            get {
+                return ((string)(this["replaceBaseUrl"]));
+            }
+            set {
+                this["replaceBaseUrl"] = value;
+            }
+        }
     }
 }
