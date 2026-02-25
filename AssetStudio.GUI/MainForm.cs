@@ -4075,16 +4075,17 @@ namespace AssetStudio.GUI
             StatusStripUpdate("正在收集AssetBundle数据...");
             assetBundleDict.Clear();
             
-            // 遍历所有exportableAssets，按Container分组
+            // 遍历所有exportableAssets，按AB文件路径（SourceFile.originalPath）分组
             foreach (var asset in exportableAssets)
             {
-                if (!string.IsNullOrEmpty(asset.Container))
+                var abFilePath = asset.SourceFile.originalPath;
+                if (!string.IsNullOrEmpty(abFilePath))
                 {
-                    if (!assetBundleDict.ContainsKey(asset.Container))
+                    if (!assetBundleDict.ContainsKey(abFilePath))
                     {
-                        assetBundleDict[asset.Container] = new List<AssetItem>();
+                        assetBundleDict[abFilePath] = new List<AssetItem>();
                     }
-                    assetBundleDict[asset.Container].Add(asset);
+                    assetBundleDict[abFilePath].Add(asset);
                 }
             }
             

@@ -1031,6 +1031,7 @@ namespace AssetStudio.GUI
                 assetItem.Text = asset.Text;
                 assetItem.Container = asset.Container;
                 assetItem.FullSize = asset.FullSize;
+                assetItem.FilePath = asset.SourceFile.originalPath;  // 设置FilePath以正确识别AB文件
                 redundanzAssets2.Add(assetItem);
             }
             
@@ -1045,43 +1046,58 @@ namespace AssetStudio.GUI
         
         private static void BuildRedundantAssetsByNamePathIDSizeType(List<AssetItem> redundanzAssets2)
         {
-            Dictionary<string, AssetItem> keyValuePairs = new Dictionary<string, AssetItem>();
-            bool isRedundanz = false;
+            // 重复资源检测：按每个资源一行
+            // 使用 FilePath + Name + PathID + FullSize + Type 作为完整唯一标识
+            // 这样同一AB内的资源只记录一次
+            Dictionary<string, AssetItem> uniqueResources = new Dictionary<string, AssetItem>();
+            
+            // 第一步：按 FilePath + 资源特征 去重（同一AB内的资源只保留一个）
             foreach (var kvp in redundanzAssets2)
             {
-                if (keyValuePairs.TryGetValue(Path.Combine(kvp.Name, kvp.m_PathID.ToString(), kvp.FullSize.ToString(), kvp.Type.ToString()), out var assetItem3))
+                var fullKey = Path.Combine(kvp.FilePath ?? "", kvp.Name, kvp.m_PathID.ToString(), kvp.FullSize.ToString(), kvp.Type.ToString());
+                if (!uniqueResources.ContainsKey(fullKey))
                 {
-                    if (assetItem3.Type == kvp.Type && assetItem3.m_PathID == kvp.m_PathID && assetItem3.FullSize == kvp.FullSize && assetItem3.Name == kvp.Name)
+                    kvp.Gesamtzahl = 1;
+                    kvp.AllContainer = (string.IsNullOrEmpty(kvp.FilePath) || IsNumericOnly(kvp.FilePath)) ? "" : kvp.FilePath;
+                    uniqueResources.Add(fullKey, kvp);
+                }
+            }
+            
+            // 第二步：检测跨AB的重复资源
+            Dictionary<string, AssetItem> resourceMap = new Dictionary<string, AssetItem>();
+            bool isRedundanz = false;
+            
+            foreach (var kvp in uniqueResources.Values)
+            {
+                // 创建资源唯一标识（不包含FilePath）
+                var resourceKey = Path.Combine(kvp.Name, kvp.m_PathID.ToString(), kvp.FullSize.ToString(), kvp.Type.ToString());
+                
+                if (resourceMap.TryGetValue(resourceKey, out var existingItem))
+                {
+                    // 找到跨AB的重复资源
+                    existingItem.Gesamtzahl++;
+                    if (!string.IsNullOrEmpty(kvp.FilePath) && !IsNumericOnly(kvp.FilePath))
                     {
-                        assetItem3.Gesamtzahl++;
-                        // 只添加非空、非纯数字且不重复的Container
-                        if (!string.IsNullOrEmpty(kvp.Container) && !IsNumericOnly(kvp.Container))
+                        var containers = existingItem.AllContainer.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+                        if (!containers.Contains(kvp.FilePath))
                         {
-                            var containers = assetItem3.AllContainer.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
-                            if (!containers.Contains(kvp.Container))
-                            {
-                                assetItem3.AllContainer += "\n" + kvp.FilePath;
-                            }
+                            existingItem.AllContainer += "\n" + kvp.FilePath;
                         }
-                        isRedundanz = true;
                     }
-                    else
-                    {
-                        kvp.AllContainer = (string.IsNullOrEmpty(kvp.FilePath) || IsNumericOnly(kvp.FilePath)) ? "" : kvp.FilePath;
-                        redundanzAssets.Add(kvp);
-                    }
+                    isRedundanz = true;
                 }
                 else
                 {
-                    kvp.AllContainer = (string.IsNullOrEmpty(kvp.FilePath) || IsNumericOnly(kvp.FilePath)) ? "" : kvp.FilePath;
-                    keyValuePairs.Add(Path.Combine(kvp.Name, kvp.m_PathID.ToString(), kvp.FullSize.ToString(), kvp.Type.ToString()), kvp);
+                    resourceMap.Add(resourceKey, kvp);
                 }
             }
-            foreach (var tmp in keyValuePairs.Values)
+            
+            foreach (var tmp in resourceMap.Values)
             {
                 tmp.SetSubItems2();
                 redundanzAssets.Add(tmp);
             }
+            
             if (isRedundanz)
             {
                 redundanzAssets.Sort((a, b) =>
