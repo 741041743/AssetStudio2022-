@@ -6,7 +6,7 @@ namespace AssetStudio
 {
     public class WebFile
     {
-        public List<StreamFile> fileList;
+        public StreamFile[] fileList;
 
         private class WebData
         {
@@ -42,8 +42,7 @@ namespace AssetStudio
                 Logger.Verbose($"Web data Info: {data}");
                 dataList.Add(data);
             }
-            Logger.Verbose("Writing files to streams...");
-            fileList = new List<StreamFile>();
+            fileList = new StreamFile[dataList.Count];
             for (int i = 0; i < dataList.Count; i++)
             {
                 var data = dataList[i];

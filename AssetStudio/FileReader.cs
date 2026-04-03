@@ -11,7 +11,7 @@ namespace AssetStudio
         public string FileName;
         public FileType FileType;
 
-        private static readonly byte[] gzipMagic = { 0x1f, 0x8b };
+        private static readonly byte[] gzipMagic = { 0x1f, 0x8b };  
         private static readonly byte[] brotliMagic = { 0x62, 0x72, 0x6F, 0x74, 0x6C, 0x69 };
         private static readonly byte[] zipMagic = { 0x50, 0x4B, 0x03, 0x04 };
         private static readonly byte[] zipSpannedMagic = { 0x50, 0x4B, 0x07, 0x08 };
@@ -44,6 +44,7 @@ namespace AssetStudio
                 case "UnityFS":
                     return FileType.BundleFile;
                 case "UnityWebData1.0":
+                case "TuanjieWebData1.0":
                     return FileType.WebFile;
                 case "blk":
                     return FileType.BlkFile;

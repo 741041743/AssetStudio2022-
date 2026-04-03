@@ -104,10 +104,10 @@ namespace AssetStudio.GUI
             StatusStripUpdate($"Decompressing {reader.FileName} ...");
             var webFile = new WebFile(reader);
             reader.Dispose();
-            if (webFile.fileList.Count > 0)
+            if (webFile.fileList != null && webFile.fileList.Length > 0)
             {
                 var extractPath = Path.Combine(savePath, reader.FileName + "_unpacked");
-                return ExtractStreamFile(extractPath, webFile.fileList);
+                return ExtractStreamFile(extractPath, webFile.fileList.ToList());
             }
             return 0;
         }
