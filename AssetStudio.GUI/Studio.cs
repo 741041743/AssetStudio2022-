@@ -1054,7 +1054,7 @@ namespace AssetStudio.GUI
             // 第一步：按 FilePath + 资源特征 去重（同一AB内的资源只保留一个）
             foreach (var kvp in redundanzAssets2)
             {
-                var fullKey = Path.Combine(kvp.FilePath ?? "", kvp.Name, kvp.m_PathID.ToString(), kvp.FullSize.ToString(), kvp.Type.ToString());
+                var fullKey = Path.Combine(kvp.FilePath ?? "", kvp.Text ?? "", kvp.m_PathID.ToString(), kvp.FullSize.ToString(), kvp.Type.ToString());
                 if (!uniqueResources.ContainsKey(fullKey))
                 {
                     kvp.Gesamtzahl = 1;
@@ -1070,7 +1070,7 @@ namespace AssetStudio.GUI
             foreach (var kvp in uniqueResources.Values)
             {
                 // 创建资源唯一标识（不包含FilePath）
-                var resourceKey = Path.Combine(kvp.Name, kvp.m_PathID.ToString(), kvp.FullSize.ToString(), kvp.Type.ToString());
+                var resourceKey = Path.Combine(kvp.Text ?? "", kvp.m_PathID.ToString(), kvp.FullSize.ToString(), kvp.Type.ToString());
                 
                 if (resourceMap.TryGetValue(resourceKey, out var existingItem))
                 {
