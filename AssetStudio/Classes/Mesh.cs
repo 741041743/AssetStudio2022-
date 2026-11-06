@@ -484,6 +484,7 @@ namespace AssetStudio
         public Matrix4x4[] m_BindPose;
         public uint[] m_BoneNameHashes;
         public int m_VertexCount;
+        public bool m_IsReadable;
         public float[] m_Vertices;
         public List<BoneWeights4> m_Skin;
         public float[] m_Normals;
@@ -572,7 +573,7 @@ namespace AssetStudio
                     {
                         var m_StreamCompression = reader.ReadByte();
                     }
-                    var m_IsReadable = reader.ReadBoolean();
+                    m_IsReadable = reader.ReadBoolean();
                     if (reader.Game.Type.IsBH3())
                     {
                         var m_IsHighPrecisionPosition = reader.ReadBoolean();

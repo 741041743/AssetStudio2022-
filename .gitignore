@@ -341,3 +341,6 @@ healthchecksdb
 
 # Server cache directory
 ServerCache/
+
+# Local distribution packages
+dist/

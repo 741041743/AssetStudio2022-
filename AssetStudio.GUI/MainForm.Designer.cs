@@ -38,6 +38,7 @@ namespace AssetStudio.GUI
             loadFileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             loadFolderToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             loadServerToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            loadApkToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             toolStripMenuItem1 = new System.Windows.Forms.ToolStripSeparator();
             extractFileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             extractFolderToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -217,7 +218,7 @@ namespace AssetStudio.GUI
             //
             // fileToolStripMenuItem
             //
-            fileToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { loadFileToolStripMenuItem, loadFolderToolStripMenuItem, loadServerToolStripMenuItem, toolStripMenuItem1, extractFileToolStripMenuItem, extractFolderToolStripMenuItem, toolStripSeparator6, resetToolStripMenuItem, abortStripMenuItem });
+            fileToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { loadFileToolStripMenuItem, loadFolderToolStripMenuItem, loadServerToolStripMenuItem, loadApkToolStripMenuItem, toolStripMenuItem1, extractFileToolStripMenuItem, extractFolderToolStripMenuItem, toolStripSeparator6, resetToolStripMenuItem, abortStripMenuItem });
             fileToolStripMenuItem.Name = "fileToolStripMenuItem";
             fileToolStripMenuItem.Size = new System.Drawing.Size(37, 20);
             fileToolStripMenuItem.Text = "File";
@@ -242,6 +243,13 @@ namespace AssetStudio.GUI
             loadServerToolStripMenuItem.Size = new System.Drawing.Size(144, 22);
             loadServerToolStripMenuItem.Text = "Load server";
             loadServerToolStripMenuItem.Click += loadServer_Click;
+            // 
+            // loadApkToolStripMenuItem
+            // 
+            loadApkToolStripMenuItem.Name = "loadApkToolStripMenuItem";
+            loadApkToolStripMenuItem.Size = new System.Drawing.Size(144, 22);
+            loadApkToolStripMenuItem.Text = "Load apk";
+            loadApkToolStripMenuItem.Click += loadApk_Click;
             //
             // toolStripMenuItem1
             // 
@@ -934,33 +942,53 @@ namespace AssetStudio.GUI
             var tabPage2Panel = new Panel() { Dock = DockStyle.Fill };
             tabPage2.Controls.Add(tabPage2Panel);
             
-            var filterPanel = new Panel() { Dock = DockStyle.Top, Height = 50 };
+            assetListFilterPanel = new Panel() { Dock = DockStyle.Top, Height = 75 };
             
             // 第一行：类型筛选
             var typeFilterPanel = new Panel() { Dock = DockStyle.Top, Height = 25 };
-            var classIDTypeComboBox = new ComboBox() { Dock = DockStyle.Left, Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
-            var totalSizeLabel = new Label() { Dock = DockStyle.Fill, TextAlign = System.Drawing.ContentAlignment.MiddleRight };
+            classIDTypeComboBox = new ComboBox() { Dock = DockStyle.Left, Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
+            totalSizeLabel = new Label() { Dock = DockStyle.Fill, TextAlign = System.Drawing.ContentAlignment.MiddleRight };
             typeFilterPanel.Controls.Add(totalSizeLabel);
             typeFilterPanel.Controls.Add(classIDTypeComboBox);
             
             // 第二行：纹理格式筛选 + 文件大小筛选
             var subFilterPanel = new Panel() { Dock = DockStyle.Top, Height = 25 };
-            var textureFormatComboBox = new ComboBox() { Dock = DockStyle.Left, Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
+            textureFormatComboBox = new ComboBox() { Dock = DockStyle.Left, Width = 250, DropDownStyle = ComboBoxStyle.DropDownList, Visible = false };
             var sizeFilterLabel = new Label() { Text = "Size >", Dock = DockStyle.Left, Width = 50, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            var sizeFilterTextBox = new TextBox() { Text = "0", Dock = DockStyle.Left, Width = 50 };
+            sizeFilterTextBox = new TextBox() { Text = "0", Dock = DockStyle.Left, Width = 50 };
             var sizeFilterUnitLabel = new Label() { Text = "MB", Dock = DockStyle.Left, Width = 30, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+
+            // Mesh 专用筛选：双面渲染 / 读写（仅在类型选择 Mesh 时显示）
+            meshDoubleSidedCheckBox = new CheckBox() { Text = "双面渲染", Dock = DockStyle.Left, Width = 90, Visible = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            meshReadWriteCheckBox = new CheckBox() { Text = "读写", Dock = DockStyle.Left, Width = 60, Visible = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
             
             subFilterPanel.Controls.Add(sizeFilterUnitLabel);
             subFilterPanel.Controls.Add(sizeFilterTextBox);
             subFilterPanel.Controls.Add(sizeFilterLabel);
             subFilterPanel.Controls.Add(textureFormatComboBox);
+            subFilterPanel.Controls.Add(meshReadWriteCheckBox);
+            subFilterPanel.Controls.Add(meshDoubleSidedCheckBox);
+
+            // 第三行：纹理专项规则（仅在类型选择 Texture2D 时显示）
+            textureRulePanel = new Panel() { Dock = DockStyle.Top, Height = 25, Visible = false };
+            var textureRuleLabel = new Label() { Text = "检测", Dock = DockStyle.Left, Width = 45, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            textureRuleComboBox = new ComboBox() { Dock = DockStyle.Left, Width = 175, DropDownStyle = ComboBoxStyle.DropDownList };
+            textureSizePresetComboBox = new ComboBox() { Dock = DockStyle.Left, Width = 80, DropDownStyle = ComboBoxStyle.DropDownList, Visible = false };
+            textureRuleDescriptionLabel = new Label() { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            textureRuleDescriptionToolTip = new ToolTip();
+
+            textureRulePanel.Controls.Add(textureRuleDescriptionLabel);
+            textureRulePanel.Controls.Add(textureSizePresetComboBox);
+            textureRulePanel.Controls.Add(textureRuleComboBox);
+            textureRulePanel.Controls.Add(textureRuleLabel);
             
-            filterPanel.Controls.Add(typeFilterPanel);
-            filterPanel.Controls.Add(subFilterPanel);
+            assetListFilterPanel.Controls.Add(textureRulePanel);
+            assetListFilterPanel.Controls.Add(subFilterPanel);
+            assetListFilterPanel.Controls.Add(typeFilterPanel);
             
             tabPage2Panel.Controls.Add(assetListView);
             tabPage2Panel.Controls.Add(listSearch);
-            tabPage2Panel.Controls.Add(filterPanel);
+            tabPage2Panel.Controls.Add(assetListFilterPanel);
             
             assetListView.Dock = DockStyle.Fill;
             listSearch.Dock = DockStyle.Top;
@@ -1175,77 +1203,8 @@ namespace AssetStudio.GUI
             assetBundleTreeView.Size = new System.Drawing.Size(472, 560);
             assetBundleTreeView.TabIndex = 0;
             assetBundleTreeView.AfterSelect += new TreeViewEventHandler(assetBundleTreeView_AfterSelect);
-            
-            //
-            // tabPage7 - 纹理专项检测
-            //
-            
-            var tabPage7 = new TabPage();
-            var uncompressedTexturesPanel = new Panel() { Dock = DockStyle.Fill };
-            var uncompressedTexturesListView = new ListView();
-            var textureDetectionComboBox = new ComboBox() { Dock = DockStyle.Top, Height = 25, DropDownStyle = ComboBoxStyle.DropDownList };
-            var uncompressedTotalLabel = new Label() { Dock = DockStyle.Top, Height = 25, TextAlign = System.Drawing.ContentAlignment.MiddleLeft, Padding = new Padding(5, 5, 5, 5) };
-            var uncompressedColumnHeader1 = new ColumnHeader();
-            var uncompressedColumnHeader2 = new ColumnHeader();
-            var uncompressedColumnHeader3 = new ColumnHeader();
-            var uncompressedColumnHeader4 = new ColumnHeader();
-            var uncompressedColumnHeader5 = new ColumnHeader();
-            var uncompressedColumnHeader6 = new ColumnHeader();
-            
-            tabPage7.Controls.Add(uncompressedTexturesPanel);
-            uncompressedTexturesPanel.Controls.Add(uncompressedTexturesListView);
-            uncompressedTexturesPanel.Controls.Add(uncompressedTotalLabel);
-            uncompressedTexturesPanel.Controls.Add(textureDetectionComboBox);
-            tabPage7.Location = new System.Drawing.Point(4, 22);
-            tabPage7.Name = "tabPage7";
-            tabPage7.Size = new System.Drawing.Size(472, 608);
-            tabPage7.TabIndex = 5;
-            tabPage7.Text = "纹理专项检测";
-            tabPage7.UseVisualStyleBackColor = true;
-            
-            textureDetectionComboBox.Items.AddRange(new object[] { "未压缩纹理", "2048纹理", "启用读写纹理", "启用Mipmaps纹理", "图片规范压缩失效纹理" });
-            textureDetectionComboBox.SelectedIndex = 0;
-            textureDetectionComboBox.SelectedIndexChanged += new EventHandler(textureDetectionComboBox_SelectedIndexChanged);
-            
-            uncompressedTexturesListView.Columns.AddRange(new ColumnHeader[] {
-                uncompressedColumnHeader1,
-                uncompressedColumnHeader2,
-                uncompressedColumnHeader3,
-                uncompressedColumnHeader4,
-                uncompressedColumnHeader5,
-                uncompressedColumnHeader6
-            });
-            uncompressedTexturesListView.Dock = DockStyle.Fill;
-            uncompressedTexturesListView.FullRowSelect = true;
-            uncompressedTexturesListView.GridLines = true;
-            uncompressedTexturesListView.HideSelection = false;
-            uncompressedTexturesListView.Location = new System.Drawing.Point(0, 0);
-            uncompressedTexturesListView.Name = "uncompressedTexturesListView";
-            uncompressedTexturesListView.Size = new System.Drawing.Size(472, 607);
-            uncompressedTexturesListView.TabIndex = 0;
-            uncompressedTexturesListView.UseCompatibleStateImageBehavior = false;
-            uncompressedTexturesListView.View = View.Details;
-            uncompressedTexturesListView.VirtualMode = true;
-            uncompressedTexturesListView.ColumnClick += new ColumnClickEventHandler(uncompressedTexturesListView_ColumnClick);
-            uncompressedTexturesListView.ItemSelectionChanged += new ListViewItemSelectionChangedEventHandler(selectAsset);
-            uncompressedTexturesListView.RetrieveVirtualItem += new RetrieveVirtualItemEventHandler(uncompressedTexturesListView_RetrieveVirtualItem);
-            uncompressedTexturesListView.MouseClick += new MouseEventHandler(assetListView_MouseClick);
-            
-            uncompressedColumnHeader1.Text = "Name";
-            uncompressedColumnHeader1.Width = 150;
-            uncompressedColumnHeader2.Text = "Format";
-            uncompressedColumnHeader2.Width = 120;
-            uncompressedColumnHeader3.Text = "Width";
-            uncompressedColumnHeader3.Width = 60;
-            uncompressedColumnHeader4.Text = "Height";
-            uncompressedColumnHeader4.Width = 60;
-            uncompressedColumnHeader5.Text = "Size";
-            uncompressedColumnHeader5.Width = 80;
-            uncompressedColumnHeader6.Text = "Container";
-            uncompressedColumnHeader6.Width = 150;
-            
+
             tabControl1.Controls.Add(tabPage8);
-            tabControl1.Controls.Add(tabPage7);
             //
             // classesListView
             // 
@@ -1717,6 +1676,7 @@ namespace AssetStudio.GUI
         private System.Windows.Forms.ToolStripMenuItem loadFileToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem loadFolderToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem loadServerToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem loadApkToolStripMenuItem;
         private System.Windows.Forms.ListView assetListView;
         private System.Windows.Forms.ColumnHeader columnHeaderName;
         private System.Windows.Forms.ColumnHeader columnHeaderSize;

@@ -30,9 +30,16 @@ namespace AssetStudio.GUI
         private Label totalSizeLabel;
         private TextBox sizeFilterTextBox;
         private ComboBox textureFormatComboBox;
-        private ListView uncompressedTexturesListView;
-        private Label uncompressedTotalLabel;
-        private ComboBox textureDetectionComboBox;
+        private Panel assetListFilterPanel;
+        private Panel textureRulePanel;
+        private ComboBox textureRuleComboBox;
+        private ComboBox textureSizePresetComboBox;
+        private Label textureRuleDescriptionLabel;
+        private ToolTip textureRuleDescriptionToolTip;
+        private bool updatingAssetListFilters;
+        private CheckBox meshDoubleSidedCheckBox;
+        private CheckBox meshReadWriteCheckBox;
+        private Dictionary<Mesh, bool> meshDoubleSidedCache;
         private ComboBox duplicateDetectionComboBox;
         private Label redundantTotalLabel;
         private TextBox redundantSearch;
@@ -46,7 +53,6 @@ namespace AssetStudio.GUI
         private TextBox bundleSizeFilterTextBox;
         private System.Timers.Timer bundleSizeFilterTimer;
         private Dictionary<string, List<AssetItem>> assetBundleDict = new Dictionary<string, List<AssetItem>>();
-        private List<AssetItem> uncompressedTextures = new List<AssetItem>();
         private List<AssetItem> allRedundantAssets = new List<AssetItem>(); // 存储所有重复资源，用于筛选
         private AssetItem lastSelectedItem;
         private AssetBrowser assetBrowser;
@@ -108,21 +114,8 @@ namespace AssetStudio.GUI
         {
             Thread.CurrentThread.CurrentCulture = new CultureInfo("en-US");
             InitializeComponent();
+            InitializeAssetListFilterControls();
 
-           var tabPage2Panel = (Panel)tabPage2.Controls[0];
-           var filterPanel = (Panel)tabPage2Panel.Controls[2];
-           var typeFilterPanel = (Panel)filterPanel.Controls[0];
-           var subFilterPanel = (Panel)filterPanel.Controls[1];
-           
-           classIDTypeComboBox = (ComboBox)typeFilterPanel.Controls[1];
-           totalSizeLabel = (Label)typeFilterPanel.Controls[0];
-           textureFormatComboBox = (ComboBox)subFilterPanel.Controls[3];
-           sizeFilterTextBox = (TextBox)subFilterPanel.Controls[1];
-           
-           // 绑定筛选事件
-           sizeFilterTextBox.TextChanged += (s, e) => FilterAssetList();
-           textureFormatComboBox.SelectedIndexChanged += (s, e) => FilterAssetList();
-           
            // 获取AB专项检测TreeView、Label、搜索框、排序下拉框和筛选输入框
            var tabPage8 = tabControl1.TabPages[4];
            var assetBundlePanel = (Panel)tabPage8.Controls[0];
@@ -150,13 +143,6 @@ namespace AssetStudio.GUI
            };
            
            assetBundleSearch.KeyPress += assetBundleSearch_KeyPress;
-           
-           // 获取纹理专项检测ListView、Label和ComboBox
-           var tabPage7 = tabControl1.TabPages[5];
-           var uncompressedPanel = (Panel)tabPage7.Controls[0];
-           uncompressedTexturesListView = (ListView)uncompressedPanel.Controls[0];
-           uncompressedTotalLabel = (Label)uncompressedPanel.Controls[1];
-           textureDetectionComboBox = (ComboBox)uncompressedPanel.Controls[2];
            
            // 获取重复资源检测下拉框、Label、搜索框和筛选输入框
            var tabPage6 = tabControl1.TabPages[2];
@@ -406,6 +392,37 @@ namespace AssetStudio.GUI
             }
         }
 
+        private async void loadApk_Click(object sender, EventArgs e)
+        {
+            using (var loadApkForm = new LoadApkForm())
+            {
+                if (loadApkForm.ShowDialog(this) != DialogResult.OK)
+                {
+                    return;
+                }
+
+                ResetForm();
+                assetsManager.SpecifyUnityVersion = specifyUnityVersion.Text;
+                assetsManager.Game = Studio.Game;
+
+                string extractDirectory = loadApkForm.ExtractDirectory;
+                StatusStripUpdate($"正在加载 APK bundle: {loadApkForm.SelectedBundleName}");
+                Logger.Info($"从 APK 抽取目录加载: {extractDirectory}");
+
+                try
+                {
+                    await Task.Run(() => assetsManager.LoadFolder(extractDirectory));
+                    BuildAssetStructures();
+                    StatusStripUpdate($"已加载 APK bundle: {loadApkForm.SelectedBundleName}");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error($"加载 APK bundle 失败: {ex.Message}");
+                    StatusStripUpdate($"加载失败: {ex.Message}");
+                }
+            }
+        }
+
         private async void extractFileToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (openFileDialog1.ShowDialog(this) == DialogResult.OK)
@@ -477,9 +494,6 @@ namespace AssetStudio.GUI
             // 更新重复资源统计信息
             UpdateRedundantStatistics();
             
-            // 执行纹理专项检测（根据下拉框选择）
-            PerformTextureDetection();
-            
             // 构建AssetBundle数据
             BuildAssetBundleData();
 
@@ -518,19 +532,26 @@ namespace AssetStudio.GUI
               var sizeInMB = typeSize.TotalSize / (1024f * 1024f);
               classIDTypeComboBox.Items.Add($"{typeSize.Type} ({typeSize.Count}) ({sizeInMB:F2} MB)");
           }
-          classIDTypeComboBox.SelectedIndexChanged -= (s, e) => FilterAssetList();
-          classIDTypeComboBox.SelectedIndex = 0;
-          classIDTypeComboBox.SelectedIndexChanged += (s, e) =>
+          updatingAssetListFilters = true;
+          try
           {
-              FilterAssetList();
-              UpdateTextureFormatComboBox();
-          };
-          
-          // 初始化纹理格式下拉框（初始为不可见）
-          textureFormatComboBox.Items.Clear();
-          textureFormatComboBox.Items.Add("All");
-          textureFormatComboBox.SelectedIndex = 0;
-          textureFormatComboBox.Visible = false;
+              classIDTypeComboBox.SelectedIndex = 0;
+              textureFormatComboBox.Items.Clear();
+              textureFormatComboBox.Items.Add("All");
+              textureFormatComboBox.SelectedIndex = 0;
+              textureRuleComboBox.SelectedIndex = (int)TextureFilterRule.All;
+              textureSizePresetComboBox.SelectedIndex = 1;
+              meshDoubleSidedCheckBox.Checked = false;
+              meshReadWriteCheckBox.Checked = false;
+          }
+          finally
+          {
+              updatingAssetListFilters = false;
+          }
+
+          meshDoubleSidedCache = null;
+          UpdateAssetTypeFilterControls();
+          FilterAssetList();
 
            var types = exportableAssets.Select(x => x.Type).Distinct().OrderBy(x => x.ToString()).ToArray();
            foreach (var type in types)
@@ -774,18 +795,6 @@ namespace AssetStudio.GUI
             if (e.ItemIndex >= 0 && e.ItemIndex < redundanzAssets.Count)
             {
                 e.Item = redundanzAssets[e.ItemIndex];
-            }
-            else
-            {
-                e.Item = new AssetItem(null) { Text = "Error" };
-            }
-        }
-
-        private void uncompressedTexturesListView_RetrieveVirtualItem(object sender, RetrieveVirtualItemEventArgs e)
-        {
-            if (e.ItemIndex >= 0 && e.ItemIndex < uncompressedTextures.Count)
-            {
-                e.Item = uncompressedTextures[e.ItemIndex];
             }
             else
             {
@@ -1136,68 +1145,6 @@ namespace AssetStudio.GUI
             redundanteRessourcenListView.EndUpdate();
             
             UpdateRedundantStatistics();
-        }
-
-        private void uncompressedTexturesListView_ColumnClick(object sender, ColumnClickEventArgs e)
-        {
-            // 如果点击的是 Container 列(第6列，索引5)，则不进行排序
-            if (e.Column == 5)
-            {
-                return;
-            }
-            
-            if (sortColumn != e.Column)
-            {
-                reverseSort = false;
-            }
-            else
-            {
-                reverseSort = !reverseSort;
-            }
-            sortColumn = e.Column;
-            
-            uncompressedTexturesListView.BeginUpdate();
-            uncompressedTexturesListView.SelectedIndices.Clear();
-            
-            // 完全照搬AssetList的排序逻辑
-            if (sortColumn == 4) //FullSize
-            {
-                uncompressedTextures.Sort((a, b) =>
-                {
-                    var asf = a.FullSize;
-                    var bsf = b.FullSize;
-                    return reverseSort ? bsf.CompareTo(asf) : asf.CompareTo(bsf);
-                });
-            }
-            else if (sortColumn == 3) //Heigth
-            {
-                uncompressedTextures.Sort((a, b) =>
-                {
-                    var asf = a.SubItemValues[1];
-                    var bsf = b.SubItemValues[1];
-                    return reverseSort ? bsf.CompareTo(asf) : asf.CompareTo(bsf);
-                });
-            }
-            else if (sortColumn == 2) //Width
-            {
-                uncompressedTextures.Sort((a, b) =>
-                {
-                    var asf = a.SubItemValues[0];
-                    var bsf = b.SubItemValues[0];
-                    return reverseSort ? bsf.CompareTo(asf) : asf.CompareTo(bsf);
-                });
-            }
-            else
-            {
-                uncompressedTextures.Sort((a, b) =>
-                {
-                    var at = a.SubItems[sortColumn].Text;
-                    var bt = b.SubItems[sortColumn].Text;
-                    return reverseSort ? bt.CompareTo(at) : at.CompareTo(bt);
-                });
-            }
-            
-            uncompressedTexturesListView.EndUpdate();
         }
 
         private void redundanteRessourcenListViewSelectAsset(object sender, ListViewItemSelectionChangedEventArgs e)
@@ -1963,6 +1910,7 @@ namespace AssetStudio.GUI
             assemblyLoader.Clear();
             exportableAssets.Clear();
             visibleAssets.Clear();
+            meshDoubleSidedCache = null;
             Studio.redundanzAssets.Clear();
             allRedundantAssets.Clear();
             redundanzAssets.Clear();
@@ -1971,9 +1919,6 @@ namespace AssetStudio.GUI
             assetListView.Items.Clear();
             redundanteRessourcenListView.VirtualListSize = 0;
             redundanteRessourcenListView.Items.Clear();
-            uncompressedTexturesListView.VirtualListSize = 0;
-            uncompressedTexturesListView.Items.Clear();
-            uncompressedTextures.Clear();
             assetBundleDict.Clear();
             assetBundleTreeView.Nodes.Clear();
             assetBundleSearch.Text = string.Empty;
@@ -2000,10 +1945,29 @@ namespace AssetStudio.GUI
             countFilterTextBox.Text = "0";
             redundantFilterTextBox.Text = "0";
             
-            textureFormatComboBox.Items.Clear();
-            textureFormatComboBox.Items.Add("All");
-            textureFormatComboBox.SelectedIndex = 0;
+            updatingAssetListFilters = true;
+            try
+            {
+                textureFormatComboBox.Items.Clear();
+                textureFormatComboBox.Items.Add("All");
+                textureFormatComboBox.SelectedIndex = 0;
+                textureRuleComboBox.SelectedIndex = (int)TextureFilterRule.All;
+                textureSizePresetComboBox.SelectedIndex = 1;
+
+                meshDoubleSidedCheckBox.Checked = false;
+                meshReadWriteCheckBox.Checked = false;
+            }
+            finally
+            {
+                updatingAssetListFilters = false;
+            }
+
             textureFormatComboBox.Visible = false;
+            textureRulePanel.Visible = false;
+            meshDoubleSidedCheckBox.Visible = false;
+            meshReadWriteCheckBox.Visible = false;
+            assetListFilterPanel.Height = 50;
+            UpdateTextureFilterControls();
 
             var count = filterTypeToolStripMenuItem.DropDownItems.Count;
             for (var i = 1; i < count; i++)
@@ -2091,10 +2055,6 @@ namespace AssetStudio.GUI
             else if (redundanteRessourcenListView.SelectedIndices.Count > 0)
             {
                 selectasset = redundanzAssets[redundanteRessourcenListView.SelectedIndices[0]];
-            }
-            else if (uncompressedTexturesListView.SelectedIndices.Count > 0)
-            {
-                selectasset = uncompressedTextures[uncompressedTexturesListView.SelectedIndices[0]];
             }
             
             if (selectasset != null)
@@ -2272,10 +2232,6 @@ namespace AssetStudio.GUI
             {
                 selectasset = redundanzAssets[redundanteRessourcenListView.SelectedIndices[0]];
             }
-            else if (uncompressedTexturesListView.SelectedIndices.Count > 0)
-            {
-                selectasset = uncompressedTextures[uncompressedTexturesListView.SelectedIndices[0]];
-            }
             
             if (selectasset?.TreeNode != null)
             {
@@ -2388,41 +2344,406 @@ namespace AssetStudio.GUI
             return selectedAssets;
         }
 
+        private void InitializeAssetListFilterControls()
+        {
+            updatingAssetListFilters = true;
+            try
+            {
+                textureRuleComboBox.Items.Clear();
+                foreach (TextureFilterRule rule in Enum.GetValues(typeof(TextureFilterRule)))
+                {
+                    textureRuleComboBox.Items.Add(TextureInspectionRules.GetDisplayName(rule));
+                }
+                textureRuleComboBox.SelectedIndex = (int)TextureFilterRule.All;
+
+                textureSizePresetComboBox.Items.Clear();
+                foreach (var size in TextureInspectionRules.LargeTextureSizePresets)
+                {
+                    textureSizePresetComboBox.Items.Add($"≥{size}");
+                }
+                textureSizePresetComboBox.SelectedIndex = 1;
+
+                textureFormatComboBox.Items.Clear();
+                textureFormatComboBox.Items.Add("All");
+                textureFormatComboBox.SelectedIndex = 0;
+            }
+            finally
+            {
+                updatingAssetListFilters = false;
+            }
+
+            classIDTypeComboBox.SelectedIndexChanged += classIDTypeComboBox_SelectedIndexChanged;
+            textureFormatComboBox.SelectedIndexChanged += textureFormatComboBox_SelectedIndexChanged;
+            textureRuleComboBox.SelectedIndexChanged += textureRuleComboBox_SelectedIndexChanged;
+            textureSizePresetComboBox.SelectedIndexChanged += textureSizePresetComboBox_SelectedIndexChanged;
+            sizeFilterTextBox.TextChanged += sizeFilterTextBox_TextChanged;
+            meshDoubleSidedCheckBox.CheckedChanged += meshFilterCheckBox_CheckedChanged;
+            meshReadWriteCheckBox.CheckedChanged += meshFilterCheckBox_CheckedChanged;
+
+            UpdateAssetTypeFilterControls();
+        }
+
+        private void classIDTypeComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (updatingAssetListFilters)
+            {
+                return;
+            }
+
+            UpdateTextureFormatComboBox();
+            UpdateAssetTypeFilterControls();
+            FilterAssetList();
+        }
+
+        private void textureFormatComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (!updatingAssetListFilters)
+            {
+                FilterAssetList();
+            }
+        }
+
+        private void textureRuleComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (updatingAssetListFilters)
+            {
+                return;
+            }
+
+            UpdateTextureFilterControls();
+            FilterAssetList();
+        }
+
+        private void textureSizePresetComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (updatingAssetListFilters)
+            {
+                return;
+            }
+
+            UpdateTextureFilterControls();
+            FilterAssetList();
+        }
+
+        private void sizeFilterTextBox_TextChanged(object sender, EventArgs e)
+        {
+            if (!updatingAssetListFilters)
+            {
+                FilterAssetList();
+            }
+        }
+
+        private void meshFilterCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (!updatingAssetListFilters)
+            {
+                FilterAssetList();
+            }
+        }
+
         private void UpdateTextureFormatComboBox()
         {
             var selectedText = classIDTypeComboBox.SelectedItem?.ToString();
-            if (selectedText != null && selectedText.StartsWith("Texture2D"))
+            if (selectedText == null || !selectedText.StartsWith("Texture2D ("))
             {
-                // 只在选择Texture2D类型时显示纹理格式筛选
-                textureFormatComboBox.Visible = true;
-                
-                // 获取所有Texture2D的格式
-                var textureFormats = exportableAssets
-                    .Where(x => x.Type == ClassIDType.Texture2D && x.Asset is Texture2D)
-                    .Select(x => ((Texture2D)x.Asset).m_TextureFormat)
-                    .GroupBy(f => f)
-                    .Select(g => new { Format = g.Key, Count = g.Count() })
-                    .OrderByDescending(x => x.Count)
-                    .ToList();
-                
-                textureFormatComboBox.SelectedIndexChanged -= (s, e) => FilterAssetList();
+                return;
+            }
+
+            var selectedFormat = textureFormatComboBox.SelectedItem?.ToString();
+            var textureFormats = exportableAssets
+                .Where(x => x.Type == ClassIDType.Texture2D && x.Asset is Texture2D)
+                .Select(x => ((Texture2D)x.Asset).m_TextureFormat)
+                .GroupBy(format => format)
+                .Select(group => new { Format = group.Key, Count = group.Count() })
+                .OrderByDescending(item => item.Count)
+                .ToList();
+
+            updatingAssetListFilters = true;
+            try
+            {
                 textureFormatComboBox.Items.Clear();
                 textureFormatComboBox.Items.Add("All");
-                
                 foreach (var format in textureFormats)
                 {
                     textureFormatComboBox.Items.Add($"{format.Format} ({format.Count})");
                 }
-                
-                textureFormatComboBox.SelectedIndex = 0;
-                textureFormatComboBox.SelectedIndexChanged += (s, e) => FilterAssetList();
+
+                var selectedIndex = selectedFormat == null
+                    ? -1
+                    : textureFormatComboBox.Items.IndexOf(selectedFormat);
+                textureFormatComboBox.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
             }
-            else
+            finally
             {
-                textureFormatComboBox.Visible = false;
+                updatingAssetListFilters = false;
             }
         }
-        
+
+        private void UpdateAssetTypeFilterControls()
+        {
+            var selectedText = classIDTypeComboBox.SelectedItem?.ToString();
+            var isTexture = selectedText != null && selectedText.StartsWith("Texture2D (");
+            var isMesh = selectedText != null && selectedText.StartsWith("Mesh (");
+
+            textureFormatComboBox.Visible = isTexture;
+            textureRulePanel.Visible = isTexture;
+            meshDoubleSidedCheckBox.Visible = isMesh;
+            meshReadWriteCheckBox.Visible = isMesh;
+            assetListFilterPanel.Height = isTexture ? 75 : 50;
+
+            if (isTexture)
+            {
+                UpdateTextureFilterControls();
+            }
+        }
+
+        private void UpdateTextureFilterControls()
+        {
+            var rule = GetSelectedTextureRule();
+            var threshold = GetSelectedLargeTextureThreshold();
+            var description = TextureInspectionRules.GetDescription(rule, threshold);
+
+            textureSizePresetComboBox.Visible = rule == TextureFilterRule.Large;
+            textureRuleDescriptionLabel.Text = description;
+            textureRuleDescriptionToolTip.SetToolTip(textureRuleDescriptionLabel, description);
+        }
+
+        private TextureFilterRule GetSelectedTextureRule()
+        {
+            return Enum.IsDefined(typeof(TextureFilterRule), textureRuleComboBox.SelectedIndex)
+                ? (TextureFilterRule)textureRuleComboBox.SelectedIndex
+                : TextureFilterRule.All;
+        }
+
+        private int GetSelectedLargeTextureThreshold()
+        {
+            var index = textureSizePresetComboBox.SelectedIndex;
+            return index >= 0 && index < TextureInspectionRules.LargeTextureSizePresets.Length
+                ? TextureInspectionRules.LargeTextureSizePresets[index]
+                : 2048;
+        }
+
+        private bool MatchesSelectedTextureRule(Texture2D texture)
+        {
+            return TextureInspectionRules.Matches(
+                GetSelectedTextureRule(),
+                texture.m_TextureFormat,
+                texture.m_Width,
+                texture.m_Height,
+                texture.m_IsReadable,
+                texture.m_MipMap,
+                texture.m_MipCount,
+                GetSelectedLargeTextureThreshold());
+        }
+
+        private static readonly string[] CullPropertyNames =
+        {
+            "_Cull", "_CullMode", "_CULL", "_CullModeProperty", "_CullState", "_Culling"
+        };
+
+        private static readonly HashSet<string> NonColorPassLightModes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "ShadowCaster", "DepthOnly", "DepthNormals", "Meta", "MotionVectors"
+        };
+
+        // 判断材质是否以双面方式渲染（Cull Off，即剔除模式为 0）
+        private static bool IsMaterialDoubleSided(Material material)
+        {
+            if (material == null || material.m_SavedProperties == null)
+            {
+                return false;
+            }
+
+            var properties = material.m_SavedProperties;
+
+            // 1. 优先看 Shader 本身的剔除状态，这是 Unity 实际渲染时的依据
+            if (material.m_Shader.TryGet(out var shader) && TryGetShaderDoubleSided(shader, properties, out var isDoubleSided))
+            {
+                return isDoubleSided;
+            }
+
+            // 2. Shader 无法判断时，退回检查材质上直接暴露的剔除参数，0 = Cull Off（双面）
+            foreach (var name in CullPropertyNames)
+            {
+                if (TryGetFloatProperty(properties, name, out var cullValue))
+                {
+                    return cullValue == 0f;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryGetShaderDoubleSided(Shader shader, UnityPropertySheet properties, out bool isDoubleSided)
+        {
+            isDoubleSided = false;
+
+            // 从 Shader 序列化状态中读取剔除模式
+            if (shader.m_ParsedForm?.m_SubShaders != null)
+            {
+                var hasState = false;
+                foreach (var subShader in shader.m_ParsedForm.m_SubShaders)
+                {
+                    SerializedShaderFloatValue fallbackCulling = null;
+                    var hasColorPass = false;
+                    foreach (var pass in subShader.m_Passes)
+                    {
+                        var culling = pass.m_State?.culling;
+                        if (culling == null)
+                        {
+                            continue;
+                        }
+                        fallbackCulling ??= culling;
+                        hasState = true;
+
+                        // 阴影/深度等辅助Pass通常单独设置Cull，不参与主渲染判断
+                        var lightMode = pass.m_State.m_Tags?.tags?
+                            .FirstOrDefault(t => t.Key.Equals("LightMode", StringComparison.OrdinalIgnoreCase)).Value;
+                        if (lightMode != null && NonColorPassLightModes.Contains(lightMode))
+                        {
+                            continue;
+                        }
+
+                        hasColorPass = true;
+                        if (ResolveCullingValue(culling, properties) == 0f)
+                        {
+                            isDoubleSided = true;
+                            return true;
+                        }
+                    }
+
+                    // 只有该 SubShader 没有任何可用于颜色渲染的 Pass 时才退回第一个 Pass
+                    if (!hasColorPass && fallbackCulling != null && ResolveCullingValue(fallbackCulling, properties) == 0f)
+                    {
+                        isDoubleSided = true;
+                        return true;
+                    }
+                }
+
+                if (hasState)
+                {
+                    return true;
+                }
+            }
+            // 旧版本 Shader（5.5 以下）直接保存源码，从源码中查找 Cull Off
+            else if (shader.m_Script != null && shader.m_Script.Length > 0)
+            {
+                var script = Encoding.UTF8.GetString(shader.m_Script);
+                if (Regex.IsMatch(script, @"\bCull\s+Off\b", RegexOptions.IgnoreCase))
+                {
+                    isDoubleSided = true;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryGetFloatProperty(UnityPropertySheet properties, string name, out float value)
+        {
+            if (properties.m_Floats != null)
+            {
+                foreach (var kv in properties.m_Floats)
+                {
+                    if (kv.Key == name)
+                    {
+                        value = kv.Value;
+                        return true;
+                    }
+                }
+            }
+            if (properties.m_Ints != null)
+            {
+                foreach (var kv in properties.m_Ints)
+                {
+                    if (kv.Key == name)
+                    {
+                        value = kv.Value;
+                        return true;
+                    }
+                }
+            }
+            value = 0f;
+            return false;
+        }
+
+        private static float ResolveCullingValue(SerializedShaderFloatValue culling, UnityPropertySheet properties)
+        {
+            if (!string.IsNullOrEmpty(culling.name) && TryGetFloatProperty(properties, culling.name, out var value))
+            {
+                return value;
+            }
+            return culling.val;
+        }
+
+        // 缓存 Mesh 是否双面渲染：需要建立 Mesh -> Renderer -> Material 的关联
+        private void EnsureMeshDoubleSidedCache()
+        {
+            if (meshDoubleSidedCache != null)
+            {
+                return;
+            }
+
+            meshDoubleSidedCache = new Dictionary<Mesh, bool>();
+            foreach (var assetsFile in assetsManager.assetsFileList)
+            {
+                foreach (var obj in assetsFile.Objects)
+                {
+                    if (obj is not GameObject gameObject)
+                    {
+                        continue;
+                    }
+
+                    Mesh mesh = null;
+                    Renderer renderer = null;
+                    if (gameObject.m_SkinnedMeshRenderer != null)
+                    {
+                        renderer = gameObject.m_SkinnedMeshRenderer;
+                        if (gameObject.m_SkinnedMeshRenderer.m_Mesh.TryGet(out var skinnedMesh))
+                        {
+                            mesh = skinnedMesh;
+                        }
+                    }
+                    else if (gameObject.m_MeshRenderer != null && gameObject.m_MeshFilter != null)
+                    {
+                        renderer = gameObject.m_MeshRenderer;
+                        if (gameObject.m_MeshFilter.m_Mesh.TryGet(out var filterMesh))
+                        {
+                            mesh = filterMesh;
+                        }
+                    }
+
+                    if (mesh == null || renderer == null)
+                    {
+                        continue;
+                    }
+
+                    if (meshDoubleSidedCache.TryGetValue(mesh, out var known) && known)
+                    {
+                        continue;
+                    }
+
+                    var isDoubleSided = false;
+                    foreach (var materialPtr in renderer.m_Materials)
+                    {
+                        if (materialPtr.TryGet(out var material) && IsMaterialDoubleSided(material))
+                        {
+                            isDoubleSided = true;
+                            break;
+                        }
+                    }
+
+                    meshDoubleSidedCache[mesh] = known || isDoubleSided;
+                }
+            }
+        }
+
+        private bool IsMeshDoubleSided(Mesh mesh)
+        {
+            EnsureMeshDoubleSidedCache();
+            return meshDoubleSidedCache.TryGetValue(mesh, out var isDoubleSided) && isDoubleSided;
+        }
+
         private void FilterAssetList()
         {
             // 检查 SelectedItem 是否为 null，避免在 ResetForm 期间出错
@@ -2434,30 +2755,49 @@ namespace AssetStudio.GUI
             assetListView.BeginUpdate();
             assetListView.SelectedIndices.Clear();
             var selectedText = classIDTypeComboBox.SelectedItem.ToString();
+            ClassIDType? selectedType = null;
             
             if (selectedText != "All")
             {
                 // 从选项文本中提取类型名称（格式为 "TypeName (count) (size MB)"）
                 var typeName = selectedText.Substring(0, selectedText.IndexOf(" ("));
                 var type = (ClassIDType)Enum.Parse(typeof(ClassIDType), typeName);
+                selectedType = type;
                 visibleAssets = exportableAssets.FindAll(x => x.Type == type);
                 
-                // 如果是Texture2D类型，应用纹理格式筛选
-                if (type == ClassIDType.Texture2D && textureFormatComboBox.Visible)
+                // 如果是Texture2D类型，应用纹理格式与专项规则筛选
+                if (type == ClassIDType.Texture2D)
                 {
                     var formatText = textureFormatComboBox.SelectedItem?.ToString();
                     if (formatText != null && formatText != "All")
                     {
-                        var formatName = formatText.Substring(0, formatText.IndexOf(" ("));
+                        var formatName = formatText.Substring(0, formatText.IndexOf(" (", StringComparison.Ordinal));
                         var textureFormat = (TextureFormat)Enum.Parse(typeof(TextureFormat), formatName);
                         visibleAssets = visibleAssets.FindAll(x =>
-                            x.Asset is Texture2D tex && tex.m_TextureFormat == textureFormat);
+                            x.Asset is Texture2D texture && texture.m_TextureFormat == textureFormat);
                     }
+
+                    visibleAssets = visibleAssets.FindAll(x =>
+                        x.Asset is Texture2D texture && MatchesSelectedTextureRule(texture));
                 }
             }
             else
             {
                 visibleAssets = exportableAssets;
+            }
+
+            // 如果是Mesh类型，应用双面渲染/读写筛选
+            if (selectedType == ClassIDType.Mesh)
+            {
+                if (meshReadWriteCheckBox.Checked)
+                {
+                    visibleAssets = visibleAssets.FindAll(x => x.Asset is Mesh m && m.m_IsReadable);
+                }
+                if (meshDoubleSidedCheckBox.Checked)
+                {
+                    EnsureMeshDoubleSidedCache();
+                    visibleAssets = visibleAssets.FindAll(x => x.Asset is Mesh m && IsMeshDoubleSided(m));
+                }
             }
             if (Properties.Settings.Default.modelsOnly)
             {
@@ -3582,285 +3922,6 @@ namespace AssetStudio.GUI
         }
         #endregion
 
-        private void textureDetectionComboBox_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            // 当下拉框选择改变时，重新执行检测
-            if (exportableAssets.Count > 0)
-            {
-                PerformTextureDetection();
-            }
-        }
-
-        private void PerformTextureDetection()
-        {
-            uncompressedTextures.Clear();
-            
-            switch (textureDetectionComboBox.SelectedIndex)
-            {
-                case 0:
-                    // 选项一：未压缩纹理检测
-                    DetectUncompressedTextures();
-                    break;
-                case 1:
-                    // 选项二：2048x4096纹理检测
-                    Detect2048x4096Textures();
-                    break;
-                case 2:
-                    // 选项三：启用读写的纹理检测
-                    DetectReadWriteEnabledTextures();
-                    break;
-                case 3:
-                    // 选项四：启用Mipmaps的纹理检测
-                    DetectMipmapEnabledTextures();
-                    break;
-                case 4:
-                    // 选项五：图片规范压缩失效纹理检测
-                    DetectInvalidCompressionTextures();
-                    break;
-            }
-        }
-
-        private void DetectUncompressedTextures()
-        {
-            var uncompressedFormats = new[] {
-                TextureFormat.RGBA32,
-                TextureFormat.ARGB32,
-                TextureFormat.RGB24,
-                TextureFormat.RGBA4444,
-                TextureFormat.ARGB4444,
-                TextureFormat.RGB565,
-                TextureFormat.R16,
-                TextureFormat.RGBAHalf,
-                TextureFormat.RGBAFloat,
-                TextureFormat.BGRA32,
-                TextureFormat.RG16,
-                TextureFormat.R8
-            };
-            uncompressedTextures.Clear();
-            long totalSize = 0;
-            foreach (var asset in exportableAssets)
-            {
-                if (asset.Type == ClassIDType.Texture2D && asset.Asset is Texture2D texture2D)
-                {
-                    if (uncompressedFormats.Contains(texture2D.m_TextureFormat))
-                    {
-                        // 创建新AssetItem并手动设置FullSize
-                        var item = new AssetItem(asset.Asset);
-                        item.Text = asset.Text;
-                        item.Container = asset.Container;
-                        item.FullSize = asset.FullSize;  // 手动设置FullSize
-                        item.SubItems.AddRange(new string[] {
-                            texture2D.m_TextureFormat.ToString(),
-                            texture2D.m_Width.ToString(),
-                            texture2D.m_Height.ToString(),
-                            $"{asset.FullSize / 1024f:F2} KB",
-                            asset.Container
-                        });
-                        item.SubItemValues.AddRange(new long[] {
-                            texture2D.m_Width,
-                            texture2D.m_Height
-                        });
-                        
-                        uncompressedTextures.Add(item);
-                        totalSize += asset.FullSize;
-                    }
-                }
-            }
-            uncompressedTexturesListView.VirtualListSize = uncompressedTextures.Count;
-            uncompressedTextures.Sort((a, b) => b.FullSize.CompareTo(a.FullSize));
-
-            uncompressedTotalLabel.Text = $"未压缩纹理总数: {uncompressedTextures.Count}  总大小: {totalSize / (1024f * 1024f):F2} MB";
-            
-            // 记录当前排序状态：Size列降序
-            sortColumn = 4;
-            reverseSort = true;
-        }
-
-        private void Detect2048x4096Textures()
-        {
-            long totalSize = 0;
-            foreach (var asset in exportableAssets)
-            {
-                if (asset.Type == ClassIDType.Texture2D && asset.Asset is Texture2D texture2D)
-                {
-                    // 修改条件：只要宽度或高度大于等于2048就筛选出来
-                    if (texture2D.m_Width >= 2048 || texture2D.m_Height >= 2048)
-                    {
-                        // 创建新AssetItem并手动设置FullSize
-                        var item = new AssetItem(asset.Asset);
-                        item.Text = asset.Text;
-                        item.Container = asset.Container;
-                        item.FullSize = asset.FullSize;  // 手动设置FullSize
-                        item.SubItems.AddRange(new string[] {
-                            texture2D.m_TextureFormat.ToString(),
-                            texture2D.m_Width.ToString(),
-                            texture2D.m_Height.ToString(),
-                            $"{asset.FullSize / 1024f:F2} KB",
-                            asset.Container
-                        });
-                        item.SubItemValues.AddRange(new long[] {
-                            texture2D.m_Width,
-                            texture2D.m_Height
-                        });
-                        
-                        uncompressedTextures.Add(item);
-                        totalSize += asset.FullSize;
-                    }
-                }
-            }
-            
-            uncompressedTexturesListView.VirtualListSize = uncompressedTextures.Count;
-            uncompressedTextures.Sort((a, b) => b.FullSize.CompareTo(a.FullSize));
-
-            uncompressedTotalLabel.Text = $"大尺寸纹理(>=2048)总数: {uncompressedTextures.Count}  总大小: {totalSize / (1024f * 1024f):F2} MB";
-            
-            // 记录当前排序状态：Size列降序
-            sortColumn = 4;
-            reverseSort = true;
-        }
-        
-        private void DetectReadWriteEnabledTextures()
-        {
-            long totalSize = 0;
-            foreach (var asset in exportableAssets)
-            {
-                if (asset.Type == ClassIDType.Texture2D && asset.Asset is Texture2D texture2D)
-                {
-                    if (texture2D.m_IsReadable)
-                    {
-                        // 创建新AssetItem并手动设置FullSize
-                        var item = new AssetItem(asset.Asset);
-                        item.Text = asset.Text;
-                        item.Container = asset.Container;
-                        item.FullSize = asset.FullSize;
-                        item.SubItems.AddRange(new string[] {
-                            texture2D.m_TextureFormat.ToString(),
-                            texture2D.m_Width.ToString(),
-                            texture2D.m_Height.ToString(),
-                            $"{asset.FullSize / 1024f:F2} KB",
-                            asset.Container
-                        });
-                        item.SubItemValues.AddRange(new long[] {
-                            texture2D.m_Width,
-                            texture2D.m_Height
-                        });
-                        
-                        uncompressedTextures.Add(item);
-                        totalSize += asset.FullSize;
-                    }
-                }
-            }
-            
-            uncompressedTexturesListView.VirtualListSize = uncompressedTextures.Count;
-            uncompressedTextures.Sort((a, b) => b.FullSize.CompareTo(a.FullSize));
-
-            uncompressedTotalLabel.Text = $"启用读写纹理总数: {uncompressedTextures.Count}  总大小: {totalSize / (1024f * 1024f):F2} MB";
-            
-            // 记录当前排序状态：Size列降序
-            sortColumn = 4;
-            reverseSort = true;
-        }
-        
-        private void DetectMipmapEnabledTextures()
-        {
-            long totalSize = 0;
-            foreach (var asset in exportableAssets)
-            {
-                if (asset.Type == ClassIDType.Texture2D && asset.Asset is Texture2D texture2D)
-                {
-                    // 检测是否启用了mipmaps (m_MipMap为true或m_MipCount>1)
-                    bool hasMipmaps = texture2D.m_MipMap || texture2D.m_MipCount > 1;
-                    if (hasMipmaps)
-                    {
-                        // 创建新AssetItem并手动设置FullSize
-                        var item = new AssetItem(asset.Asset);
-                        item.Text = asset.Text;
-                        item.Container = asset.Container;
-                        item.FullSize = asset.FullSize;
-                        item.SubItems.AddRange(new string[] {
-                            texture2D.m_TextureFormat.ToString(),
-                            texture2D.m_Width.ToString(),
-                            texture2D.m_Height.ToString(),
-                            $"{asset.FullSize / 1024f:F2} KB",
-                            asset.Container
-                        });
-                        item.SubItemValues.AddRange(new long[] {
-                            texture2D.m_Width,
-                            texture2D.m_Height
-                        });
-                        
-                        uncompressedTextures.Add(item);
-                        totalSize += asset.FullSize;
-                    }
-                }
-            }
-            
-            uncompressedTexturesListView.VirtualListSize = uncompressedTextures.Count;
-            uncompressedTextures.Sort((a, b) => b.FullSize.CompareTo(a.FullSize));
-
-            uncompressedTotalLabel.Text = $"启用Mipmaps纹理总数: {uncompressedTextures.Count}  总大小: {totalSize / (1024f * 1024f):F2} MB";
-            
-            // 记录当前排序状态：Size列降序
-            sortColumn = 4;
-            reverseSort = true;
-        }
-        
-        private void DetectInvalidCompressionTextures()
-        {
-            long totalSize = 0;
-            foreach (var asset in exportableAssets)
-            {
-                if (asset.Type == ClassIDType.Texture2D && asset.Asset is Texture2D texture2D)
-                {
-                    // 检测条件：
-                    // 1. 格式为RGBA32
-                    // 2. 启用了Mipmaps (m_MipMap为true或m_MipCount>1)
-                    // 3. 分辨率非2的幂次方
-                    bool hasMipmaps = texture2D.m_MipMap || texture2D.m_MipCount > 1;
-                    bool isRGBA32 = texture2D.m_TextureFormat == TextureFormat.RGBA32;
-                    bool isPowerOfTwo = IsPowerOfTwo(texture2D.m_Width) && IsPowerOfTwo(texture2D.m_Height);
-                    
-                    if (isRGBA32 && hasMipmaps && !isPowerOfTwo)
-                    {
-                        // 创建新AssetItem并手动设置FullSize
-                        var item = new AssetItem(asset.Asset);
-                        item.Text = asset.Text;
-                        item.Container = asset.Container;
-                        item.FullSize = asset.FullSize;
-                        item.SubItems.AddRange(new string[] {
-                            texture2D.m_TextureFormat.ToString(),
-                            texture2D.m_Width.ToString(),
-                            texture2D.m_Height.ToString(),
-                            $"{asset.FullSize / 1024f:F2} KB",
-                            asset.Container
-                        });
-                        item.SubItemValues.AddRange(new long[] {
-                            texture2D.m_Width,
-                            texture2D.m_Height
-                        });
-                        
-                        uncompressedTextures.Add(item);
-                        totalSize += asset.FullSize;
-                    }
-                }
-            }
-            
-            uncompressedTexturesListView.VirtualListSize = uncompressedTextures.Count;
-            uncompressedTextures.Sort((a, b) => b.FullSize.CompareTo(a.FullSize));
-
-            uncompressedTotalLabel.Text = $"图片规范压缩失效纹理总数: {uncompressedTextures.Count}  总大小: {totalSize / (1024f * 1024f):F2} MB";
-            
-            // 记录当前排序状态：Size列降序
-            sortColumn = 4;
-            reverseSort = true;
-        }
-        
-        // 判断一个数是否为2的幂次方
-        private bool IsPowerOfTwo(int n)
-        {
-            return n > 0 && (n & (n - 1)) == 0;
-        }
-        
         private void duplicateDetectionComboBox_SelectedIndexChanged(object sender, EventArgs e)
         {
             // 当下拉框选择改变时，重新构建资产数据

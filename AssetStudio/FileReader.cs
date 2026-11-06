@@ -10,6 +10,7 @@ namespace AssetStudio
         public string FullPath;
         public string FileName;
         public FileType FileType;
+        public long BundleDataOffset { get; private set; }
 
         private static readonly byte[] gzipMagic = { 0x1f, 0x8b };  
         private static readonly byte[] brotliMagic = { 0x62, 0x72, 0x6F, 0x74, 0x6C, 0x69 };
@@ -52,6 +53,24 @@ namespace AssetStudio
                     return FileType.ENCRFile;
                 default:
                     {
+                        // YooAsset bundles in some projects are protected by a simple
+                        // offset encryption: dummy bytes are prepended before the
+                        // normal UnityFS header.  Detect the common 3-byte variant
+                        // and keep the reader positioned at the real bundle start.
+                        Position = 3;
+                        var offsetSignature = this.ReadStringToNull(20);
+                        if (offsetSignature == "UnityWeb" ||
+                            offsetSignature == "UnityRaw" ||
+                            offsetSignature == "UnityArchive" ||
+                            offsetSignature == "UnityFS")
+                        {
+                            Logger.Verbose($"Detected offset-encrypted bundle at offset 3 ({offsetSignature})");
+                            BundleDataOffset = 3;
+                            Position = 3;
+                            return FileType.BundleFile;
+                        }
+                        Position = 0;
+
                         Logger.Verbose("signature does not match any of the supported string signatures, attempting to check bytes signatures");
                         byte[] magic = ReadBytes(2);
                         Position = 0;

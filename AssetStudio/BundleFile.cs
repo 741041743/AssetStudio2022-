@@ -410,7 +410,7 @@ namespace AssetStudio
             byte[] blocksInfoBytes;
             if (m_Header.version >= 7 && !Game.Type.IsSRGroup())
             {
-                reader.AlignStream(16);
+                AlignBundleStream(reader, 16);
             }
             if ((m_Header.flags & ArchiveFlags.BlocksInfoAtTheEnd) != 0) //kArchiveBlocksInfoAtTheEnd
             {
@@ -522,7 +522,17 @@ namespace AssetStudio
             }
             if (HasBlockInfoNeedPaddingAtStart && (m_Header.flags & ArchiveFlags.BlockInfoNeedPaddingAtStart) != 0)
             {
-                reader.AlignStream(16);
+                AlignBundleStream(reader, 16);
+            }
+        }
+
+        private static void AlignBundleStream(FileReader reader, int alignment)
+        {
+            var relativePosition = reader.Position - reader.BundleDataOffset;
+            var remainder = relativePosition % alignment;
+            if (remainder != 0)
+            {
+                reader.Position += alignment - remainder;
             }
         }
 
